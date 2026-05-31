@@ -1,0 +1,78 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8bf66ec9d0eeea947bad70b565a57e6d, type: 3}
+  m_Name: Level1
+  m_EditorClassIdentifier: Assembly-CSharp::Sort.LevelData
+  levelNumber: 1
+  difficulty: 0
+  moveLimit: 30
+  startingHeldPiece:
+    color: 2
+    isRainbow: 1
+    isQuestionmark: 0
+  columns:
+  - pieces:
+    - color: 1
+      isRainbow: 1
+      isQuestionmark: 0
+    - color: 1
+      isRainbow: 0
+      isQuestionmark: 1
+    - color: 1
+      isRainbow: 0
+      isQuestionmark: 0
+    - color: 9
+      isRainbow: 0
+      isQuestionmark: 1
+  - pieces:
+    - color: 2
+      isRainbow: 0
+      isQuestionmark: 0
+    - color: 2
+      isRainbow: 0
+      isQuestionmark: 0
+    - color: 2
+      isRainbow: 0
+      isQuestionmark: 0
+    - color: 5
+      isRainbow: 0
+      isQuestionmark: 0
+  - pieces:
+    - color: 4
+      isRainbow: 0
+      isQuestionmark: 0
+    - color: 4
+      isRainbow: 0
+      isQuestionmark: 0
+    - color: 4
+      isRainbow: 0
+      isQuestionmark: 0
+    - color: 1
+      isRainbow: 0
+      isQuestionmark: 0
+  - pieces:
+    - color: 5
+      isRainbow: 0
+      isQuestionmark: 0
+    - color: 5
+      isRainbow: 0
+      isQuestionmark: 0
+    - color: 5
+      isRainbow: 0
+      isQuestionmark: 0
+    - color: 4
+      isRainbow: 0
+      isQuestionmark: 0
+  nextLevel: {fileID: 11400000, guid: ace7b5ee6540a5a48b6cb7dca8943cf4, type: 2}
+  questionmarkRevealFromBottom: 2
+  coinReward: 30
+  freeRewindUses: 1
