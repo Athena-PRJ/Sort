@@ -17,3 +17,7 @@ MonoBehaviour:
   livesPerPurchase: 3
   coinsPerLifePurchase: 100
   coinsPerRewindUse: 200
+  coinsPerSwitchUse: 80
+  coinsPerMagnetUse: 150
+  switchUnlockLevel: 5
+  magnetUnlockLevel: 10

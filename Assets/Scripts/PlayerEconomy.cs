@@ -13,6 +13,8 @@ namespace Sort
         const string COINS_KEY = "Sort_Coins";
         const string LIVES_KEY = "Sort_Lives";
         const string LAST_REFRESH_KEY = "Sort_LastLifeRefresh";
+        const string SWITCH_USES_KEY = "Sort_SwitchUses";
+        const string MAGNET_USES_KEY = "Sort_MagnetUses";
 
         public static event Action Changed;
 
@@ -144,6 +146,69 @@ namespace Sort
             PlayerPrefs.Save();
         }
 
+        // ---------- Skill use stockpile ----------
+        // Player accumulates Switch/Magnet uses via purchase. Each successful skill use decrements
+        // the count. When count reaches 0, SkillManager shows the BuyUsesPanel to buy 1 more.
+
+        public static int SwitchUses
+        {
+            get => PlayerPrefs.GetInt(SWITCH_USES_KEY, 0);
+            private set
+            {
+                PlayerPrefs.SetInt(SWITCH_USES_KEY, Mathf.Max(0, value));
+                PlayerPrefs.Save();
+                Changed?.Invoke();
+            }
+        }
+
+        public static int MagnetUses
+        {
+            get => PlayerPrefs.GetInt(MAGNET_USES_KEY, 0);
+            private set
+            {
+                PlayerPrefs.SetInt(MAGNET_USES_KEY, Mathf.Max(0, value));
+                PlayerPrefs.Save();
+                Changed?.Invoke();
+            }
+        }
+
+        public static void AddSwitchUses(int amount) { if (amount > 0) SwitchUses = SwitchUses + amount; }
+        public static void AddMagnetUses(int amount) { if (amount > 0) MagnetUses = MagnetUses + amount; }
+
+        /// <summary>Consume one stored Switch use. Returns false if the player has none.</summary>
+        public static bool TrySpendSwitchUse()
+        {
+            if (SwitchUses <= 0) return false;
+            SwitchUses = SwitchUses - 1;
+            return true;
+        }
+
+        /// <summary>Consume one stored Magnet use. Returns false if the player has none.</summary>
+        public static bool TrySpendMagnetUse()
+        {
+            if (MagnetUses <= 0) return false;
+            MagnetUses = MagnetUses - 1;
+            return true;
+        }
+
+        /// <summary>Buy 1 Switch use with coins. Returns false if not enough coins.</summary>
+        public static bool TryBuySwitchUse()
+        {
+            if (Config == null) return false;
+            if (!TrySpendCoins(Config.coinsPerSwitchUse)) return false;
+            AddSwitchUses(1);
+            return true;
+        }
+
+        /// <summary>Buy 1 Magnet use with coins. Returns false if not enough coins.</summary>
+        public static bool TryBuyMagnetUse()
+        {
+            if (Config == null) return false;
+            if (!TrySpendCoins(Config.coinsPerMagnetUse)) return false;
+            AddMagnetUses(1);
+            return true;
+        }
+
         // ---------- Dev / test ----------
 
         public static void ResetEconomy()
@@ -151,6 +216,8 @@ namespace Sort
             PlayerPrefs.DeleteKey(COINS_KEY);
             PlayerPrefs.DeleteKey(LIVES_KEY);
             PlayerPrefs.DeleteKey(LAST_REFRESH_KEY);
+            PlayerPrefs.DeleteKey(SWITCH_USES_KEY);
+            PlayerPrefs.DeleteKey(MAGNET_USES_KEY);
             PlayerPrefs.Save();
             Changed?.Invoke();
         }

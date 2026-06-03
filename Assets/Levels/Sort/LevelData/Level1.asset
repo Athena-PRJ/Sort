@@ -14,7 +14,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Sort.LevelData
   levelNumber: 1
   difficulty: 0
-  moveLimit: 30
+  piecePrefab: {fileID: 2697371083170223703, guid: 12b960f967f10bf4dad210ed95c13691, type: 3}
+  mainBoardSprite: {fileID: 21300000, guid: 8e96ba1135710fa49bf8881599e85d0e, type: 3}
+  backgroundSprite: {fileID: 21300000, guid: 4e14f3cb640aca44ea39a0c88b21255f, type: 3}
+  moveLimit: 18
   startingHeldPiece:
     color: 2
     isRainbow: 1
@@ -22,57 +25,37 @@ MonoBehaviour:
   columns:
   - pieces:
     - color: 1
-      isRainbow: 1
+      isRainbow: 0
+      isQuestionmark: 1
+    - color: 0
+      isRainbow: 0
+      isQuestionmark: 1
+    - color: 2
+      isRainbow: 0
       isQuestionmark: 0
-    - color: 1
+  - pieces:
+    - color: 0
       isRainbow: 0
       isQuestionmark: 1
     - color: 1
       isRainbow: 0
+      isQuestionmark: 1
+    - color: 2
+      isRainbow: 0
       isQuestionmark: 0
-    - color: 9
+  - pieces:
+    - color: 0
       isRainbow: 0
       isQuestionmark: 1
-  - pieces:
-    - color: 2
-      isRainbow: 0
-      isQuestionmark: 0
-    - color: 2
-      isRainbow: 0
-      isQuestionmark: 0
-    - color: 2
-      isRainbow: 0
-      isQuestionmark: 0
-    - color: 5
-      isRainbow: 0
-      isQuestionmark: 0
-  - pieces:
-    - color: 4
-      isRainbow: 0
-      isQuestionmark: 0
-    - color: 4
-      isRainbow: 0
-      isQuestionmark: 0
-    - color: 4
-      isRainbow: 0
-      isQuestionmark: 0
     - color: 1
       isRainbow: 0
-      isQuestionmark: 0
-  - pieces:
-    - color: 5
-      isRainbow: 0
-      isQuestionmark: 0
-    - color: 5
-      isRainbow: 0
-      isQuestionmark: 0
-    - color: 5
-      isRainbow: 0
-      isQuestionmark: 0
-    - color: 4
+      isQuestionmark: 1
+    - color: 2
       isRainbow: 0
       isQuestionmark: 0
   nextLevel: {fileID: 11400000, guid: ace7b5ee6540a5a48b6cb7dca8943cf4, type: 2}
-  questionmarkRevealFromBottom: 2
-  coinReward: 30
+  questionmarkRevealFromBottom: 1
+  coinReward: 20
   freeRewindUses: 1
+  unlocksSwitchOnCompletion: 0
+  unlocksMagnetOnCompletion: 0

@@ -3,7 +3,17 @@ guid: cf34751b0c826284bb62a24a333a78fc
 ModelImporter:
   serializedVersion: 24200
   internalIDToNameTable: []
-  externalObjects: {}
+  externalObjects:
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Lego.001
+    second: {fileID: 2100000, guid: 35fe0a37eaedf034a8e77947c5f42761, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Lego_stroke.001
+    second: {fileID: 2100000, guid: 6b35b3f3c5bc99e4c96f4599d81138e9, type: 2}
   materials:
     materialImportMode: 2
     materialName: 0

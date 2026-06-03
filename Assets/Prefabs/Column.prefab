@@ -45,4 +45,4 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Sort.Column
   layoutDirection: {x: 0, y: 0, z: -1}
-  pieceSpacing: 3.8
+  pieceSpacing: 0

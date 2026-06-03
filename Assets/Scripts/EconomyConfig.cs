@@ -16,9 +16,16 @@ namespace Sort
 
         [Header("Life purchase (one transaction adds X lives, costs Y coins)")]
         [Min(1)] public int livesPerPurchase = 5;
-        [Min(0)] public int coinsPerLifePurchase = 100;
+        [Min(0)] public int coinsPerLifePurchase = 200;
 
         [Header("Skill costs (coins per extra use after the free uses run out)")]
         [Min(0)] public int coinsPerRewindUse = 50;
+        [Min(0)] public int coinsPerSwitchUse = 100;
+        [Min(0)] public int coinsPerMagnetUse = 200;
+
+        // Skill unlock thresholds moved to per-LevelData flags:
+        // open any LevelData asset and toggle "Unlocks Switch On Completion" /
+        // "Unlocks Magnet On Completion". Multiple levels can be flagged — the skill
+        // unlocks the first time ANY flagged level is cleared.
     }
 }

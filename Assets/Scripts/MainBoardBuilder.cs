@@ -46,7 +46,10 @@ namespace Sort
         [SerializeField] private Sprite tickSprite;
         [SerializeField] private Sprite outSprite;
 
-        [Header("Cell size — MUST equal Board.columnSpacing and Column.pieceSpacing")]
+        [Header("Cell size")]
+        [Tooltip("If true, cellWidth/cellHeight are read from Board.columnSpacing and the first Column's pieceSpacing at build time. Keep this ON unless you have a specific reason to override.")]
+        [SerializeField] private bool autoSyncCellSize = true;
+        [Tooltip("Manual override — used only when Auto Sync Cell Size is OFF. When auto-sync is on, these stay informational only.")]
         [SerializeField] private float cellWidth = 2.7f;
         [SerializeField] private float cellHeight = 3.8f;
 
@@ -126,11 +129,31 @@ namespace Sort
 
         // --- Build -------------------------------------------------------------
 
+        /// <summary>
+        /// Reads cellWidth from the parent Board.columnSpacing and cellHeight from the first
+        /// Column.pieceSpacing found at runtime. Skips silently if either source isn't available
+        /// (e.g. in edit mode before LevelLoader has spawned columns).
+        /// </summary>
+        void SyncCellSizeFromGameplay()
+        {
+            var board = GetComponentInParent<Board>();
+            if (board != null) cellWidth = board.ColumnSpacing;
+
+            var anyColumn = (GameManager.Instance != null && GameManager.Instance.Columns.Count > 0)
+                ? GameManager.Instance.Columns[0]
+                : null;
+            if (anyColumn != null) cellHeight = anyColumn.PieceSpacing;
+        }
+
         public void Build(int cols, int rows)
         {
             lastCols = cols;
             lastRows = rows;
             Clear();
+
+            // Auto-sync cell size with the gameplay components, so the frame never drifts
+            // when the designer rescales Board.columnSpacing or Column.pieceSpacing.
+            if (autoSyncCellSize) SyncCellSizeFromGameplay();
 
             float leftX      = -((cols - 1) * cellWidth) * 0.5f;
             float bottomRowY  = -(rows - 1) * cellHeight;

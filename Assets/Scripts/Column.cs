@@ -11,16 +11,35 @@ namespace Sort
         [Tooltip("Direction each subsequent piece moves from the top, in local space.")]
         [SerializeField] private Vector3 layoutDirection = new Vector3(0, -1, 0);
 
-        [Tooltip("Distance between piece centers along the layout direction.")]
-        [SerializeField] private float pieceSpacing = 1.1f;
-
         public bool IsLocked { get; private set; }
         public event Action<Column> Locked;
 
         // Read-only access for the animation system in PlayerHand (which needs to know
         // where each slot lives in local space to lerp pieces between slots).
         public Vector3 LayoutDirection => layoutDirection;
-        public float   PieceSpacing    => pieceSpacing;
+
+        // Last-resort fallback when no PrefabRegistry entry pushes a runtime override. Designers
+        // are expected to tune pieceSpacing per-prefab via PrefabRegistry.entries[*].pieceSpacing,
+        // not here. This const exists so a column without a registry-driven override still lays out
+        // SOMETHING reasonable instead of stacking every piece at y=0.
+        const float DEFAULT_PIECE_SPACING = 1.1f;
+
+        // Non-serialized runtime override applied by LevelLoader from the active PrefabRegistry entry.
+        // <= 0 means "no override active" → PieceSpacing falls back to DEFAULT_PIECE_SPACING.
+        [System.NonSerialized] float runtimePieceSpacing = 0f;
+
+        /// <summary>Live spacing for layout — runtime override if set, otherwise the internal fallback const.</summary>
+        public float PieceSpacing => runtimePieceSpacing > 0f ? runtimePieceSpacing : DEFAULT_PIECE_SPACING;
+
+        /// <summary>
+        /// Applies a per-level cell-height override from the active PrefabRegistry entry.
+        /// Pass 0 (or negative) to clear the override and fall back to the internal default.
+        /// </summary>
+        public void SetRuntimePieceSpacing(float spacing)
+        {
+            runtimePieceSpacing = spacing;
+            Layout();
+        }
 
         void Start()
         {
@@ -33,13 +52,17 @@ namespace Sort
 
         public void Layout()
         {
+            float spacing = PieceSpacing;
             int slot = 0;
             for (int i = 0; i < transform.childCount; i++)
             {
                 var p = transform.GetChild(i).GetComponent<Piece>();
                 if (p == null) continue;
-                p.transform.localPosition = layoutDirection * (slot * pieceSpacing);
-                p.transform.localRotation = Quaternion.identity;
+                p.transform.localPosition = layoutDirection * (slot * spacing);
+                // Use the piece's RestRotation (captured from its prefab's authored localRotation)
+                // instead of forcing identity. Lets prefabs like Card.fbx — whose mesh isn't oriented
+                // at identity-faces-camera — stay upright when laid out.
+                p.transform.localRotation = p.RestRotation;
                 slot++;
             }
         }
@@ -104,15 +127,27 @@ namespace Sort
 
         /// <summary>
         /// Reveals any Questionmark pieces whose slot is within <paramref name="revealFromBottom"/>
-        /// rows of the bottom of the column.
+        /// rows of the bottom of the column. Instant — for the animated path, call
+        /// <see cref="FindQuestionmarksToReveal"/> first and run AnimateRevealHop on each piece.
         /// </summary>
         public void CheckRevealQuestionmarks(int revealFromBottom)
         {
-            // Count total piece slots.
+            foreach (var p in FindQuestionmarksToReveal(revealFromBottom)) p.Reveal();
+        }
+
+        /// <summary>
+        /// Returns every Questionmark piece in this column whose slot is within
+        /// <paramref name="revealFromBottom"/> rows of the bottom AND that hasn't been revealed yet.
+        /// Use this when you want to animate the reveal — call AnimateRevealHop on each, then the
+        /// usual CheckRevealQuestionmarks call afterward is a no-op for already-revealed pieces.
+        /// </summary>
+        public List<Piece> FindQuestionmarksToReveal(int revealFromBottom)
+        {
+            var result = new List<Piece>();
             int total = 0;
             for (int i = 0; i < transform.childCount; i++)
                 if (transform.GetChild(i).GetComponent<Piece>() != null) total++;
-            if (total == 0) return;
+            if (total == 0) return result;
 
             int slot = 0;
             for (int i = 0; i < transform.childCount; i++)
@@ -122,10 +157,11 @@ namespace Sort
                 if (p.IsQuestionmark && !p.IsRevealed)
                 {
                     int slotsFromBottom = (total - 1) - slot;
-                    if (slotsFromBottom < revealFromBottom) p.Reveal();
+                    if (slotsFromBottom < revealFromBottom) result.Add(p);
                 }
                 slot++;
             }
+            return result;
         }
 
         /// <summary>Moves every Rainbow piece to the bottom of the column (in their original relative order).</summary>
@@ -174,21 +210,24 @@ namespace Sort
 
         /// <summary>
         /// Plays the column-complete celebration: every child piece hops up the column,
-        /// cartwheels around world-Z, and lands back in slot. Runs all pieces in parallel.
+        /// spins around world-Y, and lands back in slot. Runs all pieces in parallel.
+        /// All three knobs are designer-tunable from PlayerHand's celebration fields.
         /// </summary>
-        public IEnumerator AnimateCelebration(float duration = 0.4f, float hopDistance = 0.6f)
+        public IEnumerator AnimateCelebration(float duration = 0.4f, float hopDistance = 0.6f, float totalRotationDegrees = 360f)
         {
             // "Up the column" in local space is the reverse of layoutDirection (pieces stack downward by default).
             Vector3 hopDirLocal = -layoutDirection.normalized;
-            // World Y axis = vertical spin (pieces rotate like a top around world-up).
-            Vector3 flipAxis = Vector3.up;
+            // Vector3.zero = "let each piece use its own transform.up" — gives a clean spin around the
+            // piece's authored vertical instead of a fixed world axis. Avoids the pendulum wobble you'd
+            // see from forcing world Y through a piece that's tilted by board rotation.
+            Vector3 flipAxis = Vector3.zero;
 
             var anims = new List<Coroutine>();
             for (int i = 0; i < transform.childCount; i++)
             {
                 var piece = transform.GetChild(i).GetComponent<Piece>();
                 if (piece == null) continue;
-                anims.Add(StartCoroutine(piece.AnimateCelebrate(duration, hopDistance, hopDirLocal, flipAxis)));
+                anims.Add(StartCoroutine(piece.AnimateCelebrate(duration, hopDistance, hopDirLocal, flipAxis, totalRotationDegrees)));
             }
 
             // Wait for the slowest piece (they all share the same duration so this is equivalent

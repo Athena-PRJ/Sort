@@ -12,6 +12,20 @@ namespace Sort
         [Tooltip("Difficulty tag shown in the Level badge (Easy, Normal, Hard, SuperHard, Expert).")]
         public LevelDifficulty difficulty = LevelDifficulty.Easy;
 
+        [PrefabPicker]
+        [Tooltip("Which piece prefab this level spawns. Dropdown is sourced from PrefabRegistry — " +
+                 "add entries there to expand the available options. Each entry also carries its own " +
+                 "spacing / offset config that LevelLoader applies when this prefab is used.")]
+        public GameObject piecePrefab;
+
+        [Tooltip("Frame sprite used for this level's board background. Assign one of Assets/Texture/FullBoard/ (MB_1, MB_2, MB_3, etc.) " +
+                 "to give each level its own board color. If left null, LevelLoader uses its defaultMainBoardSprite fallback.")]
+        public Sprite mainBoardSprite;
+
+        [Tooltip("Background image displayed behind the gameplay for this level. Assign one of Assets/Texture/Background/ " +
+                 "(BG_1, BG_2, BG_3, etc.). If left null, LevelLoader uses its defaultBackgroundSprite fallback.")]
+        public Sprite backgroundSprite;
+
         [Tooltip("Maximum moves the player has before losing. 0 = unlimited.")]
         public int moveLimit = 20;
 
@@ -33,6 +47,14 @@ namespace Sort
 
         [Tooltip("Number of free Rewind uses on this level. After they run out, the player must spend coins for more.")]
         [Min(0)] public int freeRewindUses = 1;
+
+        [Tooltip("If true, completing this level permanently unlocks the Switch skill for the player. " +
+                 "Multiple levels can be flagged — the skill unlocks the first time ANY flagged level is cleared.")]
+        public bool unlocksSwitchOnCompletion = false;
+
+        [Tooltip("If true, completing this level permanently unlocks the Magnet skill for the player. " +
+                 "Multiple levels can be flagged — the skill unlocks the first time ANY flagged level is cleared.")]
+        public bool unlocksMagnetOnCompletion = false;
 
         void OnValidate()
         {

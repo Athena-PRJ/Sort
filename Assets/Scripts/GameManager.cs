@@ -167,6 +167,11 @@ namespace Sort
                 {
                     LevelProgress.MarkCompleted(loader.CurrentLevel.levelNumber);
                     PlayerEconomy.AddCoins(loader.CurrentLevel.coinReward);
+
+                    // Persistent skill unlocks driven by per-LevelData flags. The skill stays
+                    // unlocked across runs and across other levels.
+                    if (loader.CurrentLevel.unlocksSwitchOnCompletion) SkillProgress.Unlock(SkillType.Switch);
+                    if (loader.CurrentLevel.unlocksMagnetOnCompletion) SkillProgress.Unlock(SkillType.Magnet);
                 }
 
                 Debug.Log("Sort: player wins!");

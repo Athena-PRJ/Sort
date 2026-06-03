@@ -20,6 +20,10 @@ namespace Sort
         Expert
     }
 
+    // PieceTheme enum was removed in Phase 2 of the Prefab Registry refactor — per-level prefab
+    // selection now lives on LevelData.piecePrefab (a direct prefab reference sourced from
+    // PrefabRegistry). See PrefabRegistry.cs for the catalog model.
+
     public static class PieceColors
     {
         /// <summary>
