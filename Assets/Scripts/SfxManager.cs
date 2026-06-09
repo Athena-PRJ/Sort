@@ -13,7 +13,10 @@ namespace Sort
         Switch,         // Switch booster used
         Magnet,         // Magnet booster used
         TieBreak,       // a Tie binding broke
-        Unfreeze        // a frozen / Lock-Color column unfroze
+        Unfreeze,       // a frozen / Lock-Color column unfroze
+        Reveal,         // a hidden Questionmark revealed its color
+        Sink,           // the auto-sink moved the odd / Rainbow piece down to finish a column
+        Button          // a UI button press (e.g. opening Settings)
     }
 
     /// <summary>
@@ -45,6 +48,9 @@ namespace Sort
         [SerializeField] private AudioClip magnet;
         [SerializeField] private AudioClip tieBreak;
         [SerializeField] private AudioClip unfreeze;
+        [SerializeField] private AudioClip reveal;
+        [SerializeField] private AudioClip sink;
+        [SerializeField] private AudioClip button;
 
         [Header("Mix")]
         [Tooltip("Master multiplier applied to every SFX PlayOneShot.")]
@@ -106,6 +112,9 @@ namespace Sort
                 case SfxId.Magnet:         return magnet;
                 case SfxId.TieBreak:       return tieBreak;
                 case SfxId.Unfreeze:       return unfreeze;
+                case SfxId.Reveal:         return reveal;
+                case SfxId.Sink:           return sink;
+                case SfxId.Button:         return button;
                 default:                   return null;
             }
         }

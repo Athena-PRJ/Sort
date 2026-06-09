@@ -425,8 +425,19 @@ namespace Sort
         public void Reveal()
         {
             if (!isQuestionmark || revealed) return;
+            DoReveal();
+        }
+
+        /// <summary>
+        /// Performs the reveal transition (set the flag, refresh visuals) and plays the reveal SFX once.
+        /// Shared by the instant <see cref="Reveal"/> and the animated <see cref="AnimateRevealHop"/> apex
+        /// swap so the sound fires exactly once per reveal, on whichever path triggers it.
+        /// </summary>
+        void DoReveal()
+        {
             revealed = true;
             ApplyVisualState();
+            SfxManager.Play(SfxId.Reveal);
         }
 
         void OnMouseDown()
@@ -552,8 +563,7 @@ namespace Sort
                 // Mid-air visual reveal — swap material at the apex of the hop for dramatic effect.
                 if (!didSwap && u >= revealAt)
                 {
-                    revealed = true;
-                    ApplyVisualState();
+                    DoReveal();
                     didSwap = true;
                 }
 
@@ -561,7 +571,7 @@ namespace Sort
             }
 
             // Belt-and-suspenders: if a very short duration skipped the swap, do it now.
-            if (!didSwap) { revealed = true; ApplyVisualState(); }
+            if (!didSwap) DoReveal();
 
             transform.localPosition = startLocalPos;
             transform.rotation = startRotWorld;

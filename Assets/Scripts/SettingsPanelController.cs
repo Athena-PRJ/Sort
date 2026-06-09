@@ -70,6 +70,7 @@ namespace Sort
         public void Open()
         {
             if (panel == null) return;
+            SfxManager.Play(SfxId.Button);
             panel.SetActive(true);
             RefreshHapticsVisual(); // reflect the saved state each time the panel opens
             if (pauseTimeWhileOpen) Time.timeScale = 0f;

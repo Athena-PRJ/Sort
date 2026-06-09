@@ -1310,6 +1310,9 @@ namespace Sort
             var pieces = SnapshotColumnPieces(col.transform);
             if (pieces.Count == 0) yield break;
 
+            // The odd / Rainbow piece is about to slide to the bottom (column is one drop from completion).
+            SfxManager.Play(SfxId.Sink);
+
             // Capture old positions BEFORE reordering — sibling-index changes don't move objects,
             // but we still want the lerp source to be wherever each piece currently sits.
             var startLocal = new Dictionary<Piece, Vector3>(pieces.Count);
