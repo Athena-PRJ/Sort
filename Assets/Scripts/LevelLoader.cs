@@ -59,9 +59,10 @@ namespace Sort
                  "Default (3, 3). Tune your scene at this grid size, then test other grids — auto-fit handles them.")]
         [SerializeField] private Vector2Int standardGrid = new Vector2Int(3, 3);
 
-        [Tooltip("Optional per-grid scale overrides. If a level's grid (cols × rows) matches an entry " +
-                 "here, that scale multiplier is used instead of the default sqrt(standardArea/currentArea) " +
-                 "formula. Use this to fine-tune specific grids (e.g. 'I want 4×4 at 0.8 instead of 0.75').")]
+        [Tooltip("Per-grid overrides for BOTH board scale AND the status / out indicator UI. If a level's " +
+                 "grid (cols × rows) matches an entry: its scale multiplier overrides the area-preserving " +
+                 "board scale (set ≤0 to keep the default and tune only indicators), and its indicator fields " +
+                 "scale / nudge the Done / Out / Tick icons for that grid. One entry per grid to fine-tune.")]
         [SerializeField] private GridScaleOverride[] scaleOverrides = new GridScaleOverride[0];
 
         [Header("MainBoard")]
@@ -647,6 +648,21 @@ namespace Sort
             return Mathf.Sqrt(standardArea / currentArea);
         }
 
+        /// <summary>
+        /// Finds the <see cref="GridScaleOverride"/> entry for a grid size (cols × rows), if any. Used by
+        /// MainBoardBuilder to read the per-grid INDICATOR tweaks (size / offsets) from the SAME list that
+        /// tunes board scale, so one place fine-tunes both the board and its indicators for a grid.
+        /// </summary>
+        public bool TryGetGridOverride(int cols, int rows, out GridScaleOverride ov)
+        {
+            if (scaleOverrides != null)
+                for (int i = 0; i < scaleOverrides.Length; i++)
+                    if (scaleOverrides[i].gridSize.x == cols && scaleOverrides[i].gridSize.y == rows)
+                    { ov = scaleOverrides[i]; return true; }
+            ov = default;
+            return false;
+        }
+
         void ClearBoard()
         {
             // Only destroy Column children — leave decorative children (e.g. MainBoard) intact.
@@ -665,11 +681,23 @@ namespace Sort
     [System.Serializable]
     public struct GridScaleOverride
     {
-        [Tooltip("Grid size (cols × rows) this override applies to.")]
+        [Tooltip("Grid size (cols × rows) this override applies to. One entry tunes BOTH the board scale " +
+                 "and the status / out indicator UI for this grid.")]
         public Vector2Int gridSize;
 
-        [Tooltip("Uniform scale multiplier. 1.0 = same as standardGrid, 0.5 = half size, 2.0 = double.")]
+        [Tooltip("Uniform BOARD scale multiplier. 1.0 = same as standardGrid, 0.5 = half, 2.0 = double. " +
+                 "Set ≤ 0 to leave the board on the area-preserving default and tune ONLY the indicators below.")]
         public float scaleMultiplier;
+
+        [Tooltip("INDICATOR: multiplies ALL status / out / tick icon sizes for this grid (on top of the auto " +
+                 "row-compensation). ≤ 0 = 1 (no change).")]
+        public float indicatorSizeMultiplier;
+
+        [Tooltip("INDICATOR: extra MainBoard-local nudge for the TOP status frame on this grid (type X / Y / Z).")]
+        public Vector3 indicatorStatusOffset;
+
+        [Tooltip("INDICATOR: extra MainBoard-local nudge for the BOTTOM out arrow on this grid.")]
+        public Vector3 indicatorOutOffset;
     }
 
     // Per-prefab layout config now lives on PieceGenEntry in PrefabRegistry.cs. The old

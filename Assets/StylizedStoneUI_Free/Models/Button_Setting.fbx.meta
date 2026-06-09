@@ -1,7 +1,14 @@
 fileFormatVersion: 2
 guid: 7dc787ebb6cf94a49a578465f866b5c1
+AssetOrigin:
+  serializedVersion: 1
+  productId: 362026
+  packageName: Stylized Stone UI Buttons - Free Sample
+  packageVersion: 1.0
+  assetPath: Assets/StylizedStoneUI_Free/Models/Button_Setting.fbx
+  uploadId: 863480
 ModelImporter:
-  serializedVersion: 22200
+  serializedVersion: 24200
   internalIDToNameTable: []
   externalObjects:
   - first:
@@ -26,8 +33,6 @@ ModelImporter:
     optimizeGameObjects: 0
     removeConstantScaleCurves: 0
     motionNodeName: 
-    rigImportErrors: 
-    rigImportWarnings: 
     animationImportErrors: 
     animationImportWarnings: 
     animationRetargetingWarnings: 
@@ -68,6 +73,9 @@ ModelImporter:
     maxBonesPerVertex: 4
     minBoneWeight: 0.001
     optimizeBones: 1
+    generateMeshLods: 0
+    meshLodGenerationFlags: 0
+    maximumMeshLod: -1
     meshOptimizationFlags: -1
     indexFormat: 0
     secondaryUVAngleDistortion: 8
@@ -117,10 +125,3 @@ ModelImporter:
   userData: 
   assetBundleName: 
   assetBundleVariant: 
-AssetOrigin:
-  serializedVersion: 1
-  productId: 362026
-  packageName: Stylized Stone UI Buttons - Free Sample
-  packageVersion: 1.0
-  assetPath: Assets/StylizedStoneUI_Free/Models/Button_Setting.fbx
-  uploadId: 863480

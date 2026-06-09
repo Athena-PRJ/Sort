@@ -342,16 +342,16 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 7e2fa3aa1c8f30f419af83141a6df166, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Sort.MainBoardBuilder
-  indicatorRotation: {x: 85, y: 0, z: 0}
-  doneSizeFraction: 0.06
-  notDoneSizeFraction: 0.03
-  tickSizeFraction: 0.03
-  indicatorSizeFraction: 0.05
+  indicatorLocalRotation: {x: 0, y: 0, z: 0}
+  doneSizeFraction: 0.07
+  notDoneSizeFraction: 0.035
+  tickSizeFraction: 0.035
+  indicatorSizeFraction: 0.07
   standardRowsForIconScale: 3
-  statusEdgeGapFraction: 0.01
-  outEdgeGapFraction: 0.038
+  statusEdgeGapFraction: 0.44
+  outEdgeGapFraction: 0.077
   liftFraction: 0.1
-  statusIconOffset: {x: 0, y: -0.5, z: 0}
+  statusIconOffset: {x: 0, y: -0.5, z: -0.15}
   columnSpacingOverride: 1.5
   indicatorSortingOrder: 10
   indicatorOverrides: []
@@ -1636,7 +1636,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Sort.PlayerHand
   handAnchor: {fileID: 1839211129}
   heldPiece: {fileID: 0}
-  handSlotDecoration: {fileID: 0}
+  handSlotDecoration: {fileID: 1967200875}
   useAnimations: 1
   heldToTopDuration: 1
   shiftAndPopDuration: 0.4
@@ -4556,9 +4556,7 @@ MonoBehaviour:
   defaultLevel: {fileID: 11400000, guid: acdd4d63d0dcf7a45939bb52b363e743, type: 2}
   autoFit: 1
   standardGrid: {x: 3, y: 3}
-  scaleOverrides:
-  - gridSize: {x: 2, y: 2}
-    scaleMultiplier: 1.4
+  scaleOverrides: []
   mainBoardGridPadding: 1.2
   boardFrame: {fileID: 122702331}
   autoAlignBoardFrameToColumns: 1
