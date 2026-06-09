@@ -163,7 +163,8 @@ namespace Sort
                 {
                     spawnedColumns.Add(col);
                     // Only Stack Sort: this column will accept only one color's pieces (enforced in
-                    // PlayerHand). Set before GameManager/MainBoardBuilder run so the indicator tints.
+                    // PlayerHand). Set before GameManager/MainBoardBuilder run so the restriction is
+                    // live from the first frame.
                     if (colConfig.onlyStackSort)
                         col.SetOnlyStackSort(colConfig.onlyStackColor);
                 }

@@ -110,6 +110,13 @@ namespace Sort
             // Re-tally locked columns — the undone move may have unlocked one.
             lockedCount = 0;
             foreach (var c in columns) if (c != null && c.IsLocked) lockedCount++;
+
+            // Re-evaluate frozen gates against the new (lower) progress: refresh overlay counts AND
+            // re-freeze any column whose unlock progress just dropped below its threshold. Without this,
+            // a Rewind that undoes a contributing lock would leave an already-unfrozen column permanently
+            // open with a stale overlay. UpdateFrozenColumns is two-directional, so it both re-freezes
+            // and unfreezes as the recomputed progress dictates.
+            UpdateFrozenColumns();
         }
 
         public void Restart()
@@ -148,32 +155,49 @@ namespace Sort
         }
 
         /// <summary>
-        /// Recomputes the per-frozen-column "remaining columns to lock" count after every lock,
-        /// updates the FrozenOverlay text, and auto-unfreezes any column whose threshold is met.
-        /// Called from <see cref="OnColumnLocked"/> (after each lock) so the player sees the
-        /// countdown tick down live.
+        /// Recomputes each frozen-origin column's unlock progress, refreshes its FrozenOverlay count,
+        /// and reconciles its frozen state in BOTH directions: auto-unfreezes a column once its
+        /// threshold is met, and RE-freezes one whose progress later drops below the threshold (e.g. a
+        /// Rewind undoes a contributing lock). Called from <see cref="OnColumnLocked"/> (after each lock,
+        /// so the countdown ticks down live) and from <see cref="RefundMove"/> (after an undo).
         /// </summary>
         void UpdateFrozenColumns()
         {
             for (int i = 0; i < columns.Count; i++)
             {
                 var col = columns[i];
-                if (col == null || !col.IsFrozen) continue;
+                // Consider every column AUTHORED as frozen (even if currently unfrozen) so a Rewind that
+                // drops the unlock progress can RE-freeze it — not just the currently-frozen ones.
+                if (col == null || !col.WasFrozenColumn) continue;
+                // A frozen-origin column that already unfroze AND was solved stays done — never re-freeze
+                // a completed column.
+                if (col.IsLocked) continue;
 
-                // Lock Color Stack counts only columns completed in the required color; plain Break
-                // Wall Stack counts every locked column (the global lockedCount).
-                int progress = col.FrozenLockColor
-                    ? CountLockedOfColor(col.FrozenRequiredColor, col)
+                // Lock Color Stack counts only columns completed in the required color; plain Break Wall
+                // Stack counts every locked column (the global lockedCount). Use the AUTHORED spec
+                // (Initial*) so the values survive an Unfreeze for the re-freeze path below.
+                int progress = col.InitialFrozenLockColor
+                    ? CountLockedOfColor(col.InitialFrozenRequiredColor, col)
                     : lockedCount;
 
-                int remaining = col.FrozenUnlockThreshold - progress;
+                bool shouldBeFrozen = progress < col.InitialFrozenThreshold;
                 var overlay = col.GetComponentInChildren<FrozenOverlay>(true);
-                if (overlay != null) overlay.SetRemaining(remaining);
 
-                if (progress >= col.FrozenUnlockThreshold)
+                if (shouldBeFrozen)
                 {
-                    col.Unfreeze();
-                    if (overlay != null) overlay.gameObject.SetActive(false);
+                    // Re-freeze if a Rewind reopened this gate (no-op via the IsFrozen check if already frozen).
+                    if (!col.IsFrozen)
+                        col.Freeze(col.InitialFrozenThreshold, col.InitialFrozenLockColor, col.InitialFrozenRequiredColor);
+                    if (overlay != null)
+                    {
+                        if (!overlay.gameObject.activeSelf) overlay.gameObject.SetActive(true);
+                        overlay.SetRemaining(col.InitialFrozenThreshold - progress);
+                    }
+                }
+                else
+                {
+                    if (col.IsFrozen) col.Unfreeze();
+                    if (overlay != null && overlay.gameObject.activeSelf) overlay.gameObject.SetActive(false);
                 }
             }
         }

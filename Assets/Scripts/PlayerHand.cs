@@ -49,14 +49,15 @@ namespace Sort
         [SerializeField] private int maxQueuedClicks = 2;
 
         [Header("Celebration animation (column complete)")]
-        [Tooltip("Total duration of the hop+spin per piece when a column locks. Longer = slower, more visible " +
-                 "rotation. Shorter = punchier but rotation may feel jittery if multiple turns fit in the time.")]
-        [SerializeField] private float celebrationDuration = 0.7f;
-        [Tooltip("How high each piece hops during celebration. Higher = more dramatic 'bursting up' before the spin.")]
-        [SerializeField] private float celebrationHopHeight = 1.0f;
-        [Tooltip("How many full rotations each piece makes during celebration (around world Y axis — left ↔ right " +
-                 "spin from the camera's perspective). 1.0 = one full turn (360°). 2.0 = two full turns (720°).")]
-        [SerializeField] private float celebrationRotations = 2f;
+        [Tooltip("Total duration of the hop+flip per piece when a column locks. Tuned to match the " +
+                 "Questionmark-reveal hop feel (~0.5s) — a single graceful flip, not a long spin.")]
+        [SerializeField] private float celebrationDuration = 0.5f;
+        [Tooltip("How high each piece hops during celebration. Kept in line with the reveal hop (~0.7).")]
+        [SerializeField] private float celebrationHopHeight = 0.7f;
+        [Tooltip("How many full turns each piece makes during celebration (spins around the piece's own " +
+                 "axis, like the Questionmark reveal). 1 = a single clean 360° flip (recommended). Values " +
+                 ">1 read as excessive mid-air spinning — keep at 1 to match the reveal animation.")]
+        [SerializeField] private float celebrationRotations = 1f;
 
         [Header("Switch skill animation")]
         [Tooltip("Flight time for each piece during a Switch swap.")]
@@ -214,6 +215,9 @@ namespace Sort
 
             // Any tap counts as interaction — reset the board's idle wind-sway timer.
             AnyInteraction?.Invoke();
+
+            // Light haptic on every column/piece tap (mobile). No-op on desktop / when disabled in Settings.
+            Haptics.LightTap();
 
             switch (skillMode)
             {
@@ -1228,10 +1232,11 @@ namespace Sort
             {
                 var c = cols[i];
                 if (c == null || c.IsLocked) continue;
-                if (c.IsFrozen) continue;   // Frozen columns are inert — no rainbow sink, no shifts.
-                if (c.ShouldSinkRainbow(heldColor))
+                if (c.IsFrozen) continue;   // Frozen columns are inert — no auto-sink, no shifts.
+                var targets = c.GetSinkTargets(heldColor);
+                if (targets.Count > 0)
                 {
-                    c.MoveRainbowsToBottom();
+                    c.SinkPiecesToBottom(targets);
                     c.Layout();
                 }
             }
@@ -1254,19 +1259,21 @@ namespace Sort
             {
                 var c = cols[i];
                 if (c == null || c.IsLocked) continue;
-                if (c.IsFrozen) continue;   // Frozen columns are inert — no rainbow sink, no shifts.
-                if (c.ShouldSinkRainbow(heldColor))
-                    sinkAnims.Add(StartCoroutine(AnimateRainbowSink(c)));
+                if (c.IsFrozen) continue;   // Frozen columns are inert — no auto-sink, no shifts.
+                var targets = c.GetSinkTargets(heldColor);
+                if (targets.Count > 0)
+                    sinkAnims.Add(StartCoroutine(AnimateSink(c, targets)));
             }
             foreach (var co in sinkAnims) yield return co;
         }
 
         /// <summary>
-        /// Animates a single column's rainbow-to-bottom shuffle. Captures current piece positions,
-        /// reorders siblings via MoveRainbowsToBottom, then lerps each piece from its old position
-        /// to the new slot. Pieces whose position doesn't change (already in place) are skipped.
+        /// Animates a single column's auto-sink shuffle (rainbows, or a single odd-coloured piece —
+        /// see <see cref="Column.GetSinkTargets"/>). Captures current piece positions, reorders siblings
+        /// via <see cref="Column.SinkPiecesToBottom"/>, then lerps each piece from its old position to
+        /// the new slot. Pieces whose position doesn't change (already in place) are skipped.
         /// </summary>
-        IEnumerator AnimateRainbowSink(Column col)
+        IEnumerator AnimateSink(Column col, List<Piece> sinkTargets)
         {
             var pieces = SnapshotColumnPieces(col.transform);
             if (pieces.Count == 0) yield break;
@@ -1276,8 +1283,8 @@ namespace Sort
             var startLocal = new Dictionary<Piece, Vector3>(pieces.Count);
             foreach (var p in pieces) startLocal[p] = p.transform.localPosition;
 
-            // Reorder siblings so rainbows are at the bottom.
-            col.MoveRainbowsToBottom();
+            // Reorder siblings so the sink targets drop to the bottom.
+            col.SinkPiecesToBottom(sinkTargets);
 
             // Compute target positions from the new sibling order. Don't call Layout() yet —
             // that would snap pieces instantly; we want to lerp instead.

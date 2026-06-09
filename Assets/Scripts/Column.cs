@@ -38,6 +38,26 @@ namespace Sort
         /// <summary>The color NAME whose locked columns count toward unlock — only meaningful when <see cref="FrozenLockColor"/>.</summary>
         public string FrozenRequiredColor => frozenRequiredColor;
 
+        // The ORIGINAL (level-authored) freeze spec, captured the first time this column is frozen and
+        // RETAINED across Unfreeze. This lets a Rewind re-freeze the column if undoing a lock drops the
+        // unlock progress back below the threshold (the live frozen* fields are cleared on Unfreeze, so
+        // they can't be used for that). 0 = this column was never authored as a frozen/lock-color column.
+        [NonSerialized] int initialFrozenThreshold;
+        [NonSerialized] bool initialFrozenLockColor;
+        [NonSerialized] string initialFrozenRequiredColor;
+
+        /// <summary>True if this column was authored as a Break Wall / Lock Color column — even if currently unfrozen.</summary>
+        public bool WasFrozenColumn => initialFrozenThreshold > 0;
+
+        /// <summary>The authored unlock threshold (retained across Unfreeze, for Rewind re-freeze).</summary>
+        public int InitialFrozenThreshold => initialFrozenThreshold;
+
+        /// <summary>Whether the authored freeze was the Lock Color variant (retained across Unfreeze).</summary>
+        public bool InitialFrozenLockColor => initialFrozenLockColor;
+
+        /// <summary>The authored Lock Color required-color NAME (retained across Unfreeze).</summary>
+        public string InitialFrozenRequiredColor => initialFrozenRequiredColor;
+
         /// <summary>Fires whenever the column transitions in or out of the frozen state. UI/overlay listens.</summary>
         public event Action<Column> FrozenChanged;
 
@@ -159,41 +179,72 @@ namespace Sort
         }
 
         /// <summary>
-        /// True when (a) every non-Rainbow piece in this column matches <paramref name="heldColor"/>,
-        /// (b) at least one Rainbow is above a real piece, and (c) no Questionmark is still hidden.
-        /// In that case, the player is one ejection-swap away from completing the column,
-        /// so the Rainbow should sink to the bottom to enable it.
+        /// Returns the piece(s) that should sink to the BOTTOM so this column is set up to COMPLETE on
+        /// the next drop of a <paramref name="heldColor"/> piece — or an empty list if there's no such
+        /// opportunity. Both cases require no still-hidden Questionmark and a sink that actually changes
+        /// the order (a blocker sitting above a matching piece):
+        ///   • Rainbow arrange: every REAL piece already matches heldColor and ≥1 Rainbow sits above a
+        ///     real one → all Rainbows sink. (Preserves the original Rainbow-only behaviour.)
+        ///   • Single odd piece: no Rainbows, and EXACTLY ONE real piece differs from heldColor while all
+        ///     the rest match → that one "odd" piece sinks. (Generalises the helper to plain colours, so
+        ///     ANY column that's one piece away from completion auto-arranges, not just rainbow columns.)
+        /// Caller animates the move via <see cref="SinkPiecesToBottom"/>.
         /// </summary>
-        public bool ShouldSinkRainbow(string heldColor)
+        public List<Piece> GetSinkTargets(string heldColor)
         {
-            bool seenAny = false;
-            int firstRainbowSlot = -1;
-            int lastNonRainbowSlot = -1;
-            int slot = 0;
+            var result = new List<Piece>();
+            if (string.IsNullOrEmpty(heldColor)) return result;
 
+            var pieces = new List<Piece>();
             for (int i = 0; i < transform.childCount; i++)
             {
                 var p = transform.GetChild(i).GetComponent<Piece>();
-                if (p == null) continue;
+                if (p != null) pieces.Add(p);
+            }
+            if (pieces.Count == 0) return result;
 
+            var rainbows = new List<Piece>();
+            Piece oddReal = null;
+            int oddRealCount = 0, matchCount = 0;
+            int firstBlockerSlot = -1, lastMatchSlot = -1;
+
+            for (int slot = 0; slot < pieces.Count; slot++)
+            {
+                var p = pieces[slot];
+                if (p.IsQuestionmark && !p.IsRevealed) return result;   // unknown identity → can't decide
                 if (p.IsRainbow)
                 {
-                    if (firstRainbowSlot == -1) firstRainbowSlot = slot;
+                    rainbows.Add(p);
+                    if (firstBlockerSlot < 0) firstBlockerSlot = slot;
+                }
+                else if (p.Color == heldColor)
+                {
+                    matchCount++;
+                    lastMatchSlot = slot;
                 }
                 else
                 {
-                    if (p.IsQuestionmark && !p.IsRevealed) return false; // can't determine match yet
-                    if (p.Color != heldColor) return false;              // a real piece doesn't match held
-                    seenAny = true;
-                    lastNonRainbowSlot = slot;
+                    oddReal = p;
+                    oddRealCount++;
+                    if (firstBlockerSlot < 0) firstBlockerSlot = slot;
                 }
-
-                slot++;
             }
 
-            if (firstRainbowSlot == -1) return false; // no rainbow present
-            if (!seenAny) return false;                // column is all rainbows, undefined
-            return lastNonRainbowSlot > firstRainbowSlot;
+            // Rainbow arrange (original behaviour): all reals match, ≥1 rainbow sits above a real one.
+            if (rainbows.Count > 0 && oddRealCount == 0)
+            {
+                if (matchCount > 0 && lastMatchSlot > firstBlockerSlot) result.AddRange(rainbows);
+                return result;
+            }
+
+            // Single odd real piece, everything else matches (NEW): sink it unless it's already the bottom piece.
+            if (rainbows.Count == 0 && oddRealCount == 1 && matchCount == pieces.Count - 1)
+            {
+                if (oddReal != pieces[pieces.Count - 1]) result.Add(oddReal);
+                return result;
+            }
+
+            return result;
         }
 
         /// <summary>
@@ -235,23 +286,29 @@ namespace Sort
             return result;
         }
 
-        /// <summary>Moves every Rainbow piece to the bottom of the column (in their original relative order).</summary>
-        public void MoveRainbowsToBottom()
+        /// <summary>
+        /// Reorders children so the given <paramref name="targets"/> sit at the BOTTOM of the column
+        /// (keeping their current relative order), with every other piece kept on top in its current
+        /// order. Generalises the old MoveRainbowsToBottom — driven by <see cref="GetSinkTargets"/> for
+        /// both the rainbow case and a single odd-coloured piece. No-op if targets is null/empty.
+        /// </summary>
+        public void SinkPiecesToBottom(List<Piece> targets)
         {
-            var nonRainbow = new List<Transform>();
-            var rainbows = new List<Transform>();
+            if (targets == null || targets.Count == 0) return;
+            var set = new HashSet<Piece>(targets);
+            var keep = new List<Transform>();
+            var sink = new List<Transform>();
             for (int i = 0; i < transform.childCount; i++)
             {
                 var t = transform.GetChild(i);
                 var p = t.GetComponent<Piece>();
                 if (p == null) continue;
-                if (p.IsRainbow) rainbows.Add(t);
-                else nonRainbow.Add(t);
+                if (set.Contains(p)) sink.Add(t); else keep.Add(t);
             }
 
             int idx = 0;
-            foreach (var t in nonRainbow) t.SetSiblingIndex(idx++);
-            foreach (var t in rainbows)   t.SetSiblingIndex(idx++);
+            foreach (var t in keep) t.SetSiblingIndex(idx++);
+            foreach (var t in sink) t.SetSiblingIndex(idx++);
         }
 
         public void EvaluateLock()
@@ -289,6 +346,15 @@ namespace Sort
         public void Freeze(int threshold, bool lockColor = false, string requiredColor = null)
         {
             if (threshold <= 0) return;
+            // Capture the authored spec the first time so a later Rewind can re-freeze this column
+            // (UpdateFrozenColumns re-applies Freeze with these retained values). The spec is constant
+            // for the level, so capturing once is enough — re-freeze calls pass the same values back.
+            if (initialFrozenThreshold == 0)
+            {
+                initialFrozenThreshold = threshold;
+                initialFrozenLockColor = lockColor;
+                initialFrozenRequiredColor = requiredColor;
+            }
             frozenUnlockThreshold = threshold;
             frozenLockColor = lockColor;
             frozenRequiredColor = requiredColor;

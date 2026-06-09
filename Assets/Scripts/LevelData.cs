@@ -420,8 +420,10 @@ namespace Sort
         public bool lockColorStack = false;
 
         [Tooltip("Lock Color Stack: the color whose completed columns count toward unlocking this " +
-                 "column. The FrozenOverlay is tinted to this color so the player sees which color to " +
-                 "complete. Ignored when 'Lock Color Stack' is OFF.")]
+                 "column. Only columns completed in THIS color advance the unlock; other colors don't. " +
+                 "(The FrozenOverlay shows a remaining-count number — it is NOT tinted to this color; " +
+                 "surface the color via art on the overlay later if you want it visible.) " +
+                 "Ignored when 'Lock Color Stack' is OFF.")]
         [PaletteColor]
         public string requiredColor = "";
 
@@ -431,8 +433,9 @@ namespace Sort
         [Min(1)] public int lockColorUnlockThreshold = 1;
 
         [Tooltip("ONLY STACK SORT: tick to make THIS column accept ONLY pieces of 'Only Stack Color'. " +
-                 "The player cannot drop a non-matching piece here (rainbows are wild). The column's " +
-                 "status indicator on top is tinted to that color so the player can see the restriction. " +
+                 "The player cannot drop a non-matching piece here (rainbows are wild). " +
+                 "(Tint was removed — the status indicator is NOT colored to show the restriction; " +
+                 "render the color's BaseMap as an icon later if you want it visible to the player.) " +
                  "MUTUALLY EXCLUSIVE with Lock Color Stack and Break Wall (Frozen Columns) — a column " +
                  "may use only ONE special mechanic (validation enforces this).")]
         public bool onlyStackSort = false;

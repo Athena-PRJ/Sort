@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Sort.LevelData
   levelNumber: 3
   difficulty: 0
-  piecePrefab: {fileID: 8595755308906869233, guid: dfdf8c852b0e5104184c4e0f60f2ebb9, type: 3}
+  piecePrefab: {fileID: 9008629956183570367, guid: 2384a7bd7eeb05348a1d172b63e15295, type: 3}
   paletteStyle: 1
   mainBoardSprite: {fileID: 21300000, guid: 4608f4f5dfeb7634b97c66817cbb14b8, type: 3}
   backgroundSprite: {fileID: 21300000, guid: 400c49dd64d11434d9ef68875aeb4c7a, type: 3}
