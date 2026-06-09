@@ -257,6 +257,10 @@ namespace Sort
             if (!Application.isPlaying) return;
             if (CurrentLevel == null) return;
             RefreshAlignment();
+            // Also rebuild the board indicators so per-grid override tweaks (board scale / indicator
+            // size / offsets in scaleOverrides) show up live while tuning in Play mode.
+            var mbb = FindFirstObjectByType<MainBoardBuilder>();
+            if (mbb != null) mbb.MarkDirty();
         }
 
         /// <summary>

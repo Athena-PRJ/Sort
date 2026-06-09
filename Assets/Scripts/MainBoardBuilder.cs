@@ -95,6 +95,9 @@ namespace Sort
         void Update() { if (dirty && lastCols > 0) { dirty = false; Build(lastCols, lastRows); } }
         [ContextMenu("Rebuild")] void RebuildContext() { if (lastCols > 0) Build(lastCols, lastRows); }
 
+        /// <summary>Request a rebuild next frame. Called by LevelLoader when scaleOverrides change in Play mode.</summary>
+        public void MarkDirty() => dirty = true;
+
         public void Build(int cols, int rows)
         {
             lastCols = cols;
