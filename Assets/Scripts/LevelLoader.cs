@@ -59,10 +59,10 @@ namespace Sort
                  "Default (3, 3). Tune your scene at this grid size, then test other grids — auto-fit handles them.")]
         [SerializeField] private Vector2Int standardGrid = new Vector2Int(3, 3);
 
-        [Tooltip("Per-grid overrides for BOTH board scale AND the status / out indicator UI. If a level's " +
-                 "grid (cols × rows) matches an entry: its scale multiplier overrides the area-preserving " +
-                 "board scale (set ≤0 to keep the default and tune only indicators), and its indicator fields " +
-                 "scale / nudge the Done / Out / Tick icons for that grid. One entry per grid to fine-tune.")]
+        [Tooltip("Per-grid overrides (cols × rows). One entry fine-tunes everything for that grid: BOARD " +
+                 "scale (scaleMultiplier; ≤0 = keep area-preserving default), PIECE scale (pieceScaleMultiplier), " +
+                 "MainBoard position (mainBoardOffset), and the status / out INDICATOR size + offsets. " +
+                 "Changes apply live in Play mode. One entry per grid you want to tune.")]
         [SerializeField] private GridScaleOverride[] scaleOverrides = new GridScaleOverride[0];
 
         [Header("MainBoard")]
@@ -243,6 +243,11 @@ namespace Sort
             Vector3 mbOff = hasOv ? ov.mainBoardExtraOffset : Vector3.zero;
             Vector3 piOff = hasOv ? ov.heldPieceExtraOffset : Vector3.zero;
 
+            // Per-grid MainBoard nudge from scaleOverrides — lets you move the board (and its attached
+            // indicators) to align better for a specific grid, on top of the per-prefab offset.
+            GetGrid(CurrentLevel, out int gc, out int gr);
+            if (TryGetGridOverride(gc, gr, out var gov)) mbOff += gov.mainBoardOffset;
+
             if (autoAlignBoardFrameToColumns) AlignBoardFrameToColumns(cols, mbOff);
 
             if (playerHand != null)
@@ -256,6 +261,21 @@ namespace Sort
             // Edit mode (no level built yet) and during build/import (CurrentLevel is null).
             if (!Application.isPlaying) return;
             if (CurrentLevel == null) return;
+
+            var pf = ResolvePiecePrefab(CurrentLevel);
+            // Re-apply the per-grid BOARD scale (scaleMultiplier) live — RefreshAlignment alone does NOT
+            // re-run auto-fit, which is why editing Scale Multiplier in Play mode previously did nothing.
+            // Safe to re-run: ApplyAutoFit computes from the authored scales captured once in Awake.
+            if (autoFit && pf != null) ApplyAutoFit(CurrentLevel, pf);
+            // Re-push piece baselines so the per-grid pieceScaleMultiplier updates live too.
+            if (pf != null && board != null)
+            {
+                var pieces = new System.Collections.Generic.List<Piece>();
+                board.GetComponentsInChildren(true, pieces);
+                for (int i = 0; i < pieces.Count; i++) ApplyRegistryPieceScale(pieces[i], pf);
+                if (playerHand != null && playerHand.HeldPiece != null)
+                    ApplyRegistryPieceScale(playerHand.HeldPiece, pf);
+            }
             RefreshAlignment();
             // Also rebuild the board indicators so per-grid override tweaks (board scale / indicator
             // size / offsets in scaleOverrides) show up live while tuning in Play mode.
@@ -511,7 +531,26 @@ namespace Sort
             if (piece == null || registry == null) return;
             if (!registry.TryGetEntry(piecePrefab, out var entry)) return;
             if (entry.pieceScale.sqrMagnitude < 1e-6f) return; // Zero scale → keep prefab's authored.
-            piece.SetBaselineScale(entry.pieceScale);
+
+            // Per-grid piece-scale override (independent of board scale) from scaleOverrides.
+            float pieceMul = 1f;
+            if (CurrentLevel != null)
+            {
+                GetGrid(CurrentLevel, out int gc, out int gr);
+                if (TryGetGridOverride(gc, gr, out var gov) && gov.pieceScaleMultiplier > 0f)
+                    pieceMul = gov.pieceScaleMultiplier;
+            }
+            piece.SetBaselineScale(entry.pieceScale * pieceMul);
+        }
+
+        /// <summary>Reads a level's grid size: cols = number of columns, rows = the tallest column.</summary>
+        static void GetGrid(LevelData data, out int cols, out int rows)
+        {
+            cols = (data != null && data.columns != null) ? Mathf.Max(1, data.columns.Length) : 1;
+            rows = 1;
+            if (data != null && data.columns != null)
+                foreach (var c in data.columns)
+                    if (c != null && c.pieces != null && c.pieces.Length > rows) rows = c.pieces.Length;
         }
 
         /// <summary>
@@ -690,8 +729,17 @@ namespace Sort
         public Vector2Int gridSize;
 
         [Tooltip("Uniform BOARD scale multiplier. 1.0 = same as standardGrid, 0.5 = half, 2.0 = double. " +
-                 "Set ≤ 0 to leave the board on the area-preserving default and tune ONLY the indicators below.")]
+                 "Set ≤ 0 to leave the board on the area-preserving default and tune ONLY the other fields.")]
         public float scaleMultiplier;
+
+        [Tooltip("PIECE scale multiplier for this grid — multiplies the prefab's pieceScale for the pieces " +
+                 "ONLY (independent of the board scale above), so you can make tiles bigger / smaller without " +
+                 "resizing the board. ≤ 0 = 1 (no change).")]
+        public float pieceScaleMultiplier;
+
+        [Tooltip("Extra WORLD-space offset that MOVES the MainBoard (and its attached indicators) for this " +
+                 "grid, on top of the auto-centering on the column grid. Use to nudge the board into place.")]
+        public Vector3 mainBoardOffset;
 
         [Tooltip("INDICATOR: multiplies ALL status / out / tick icon sizes for this grid (on top of the auto " +
                  "row-compensation). ≤ 0 = 1 (no change).")]

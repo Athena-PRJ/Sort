@@ -354,7 +354,6 @@ MonoBehaviour:
   statusIconOffset: {x: 0, y: -0.5, z: -0.15}
   columnSpacingOverride: 1.5
   indicatorSortingOrder: 10
-  indicatorOverrides: []
 --- !u!114 &122702331
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -4556,7 +4555,22 @@ MonoBehaviour:
   defaultLevel: {fileID: 11400000, guid: acdd4d63d0dcf7a45939bb52b363e743, type: 2}
   autoFit: 1
   standardGrid: {x: 3, y: 3}
-  scaleOverrides: []
+  scaleOverrides:
+  - gridSize: {x: 5, y: 5}
+    scaleMultiplier: 0
+    indicatorSizeMultiplier: 1.1
+    indicatorStatusOffset: {x: 0, y: -5.5, z: 0}
+    indicatorOutOffset: {x: 0, y: 1, z: 0}
+  - gridSize: {x: 2, y: 2}
+    scaleMultiplier: 0
+    indicatorSizeMultiplier: 0.9
+    indicatorStatusOffset: {x: 0, y: 0.08, z: 0}
+    indicatorOutOffset: {x: 0, y: -0.07, z: 0}
+  - gridSize: {x: 2, y: 3}
+    scaleMultiplier: 0
+    indicatorSizeMultiplier: 0.9
+    indicatorStatusOffset: {x: 0, y: 0.02, z: 0}
+    indicatorOutOffset: {x: 0, y: -0.02, z: 0}
   mainBoardGridPadding: 1.2
   boardFrame: {fileID: 122702331}
   autoAlignBoardFrameToColumns: 1
