@@ -1,0 +1,202 @@
+{
+  "name": "Level 9",
+  "version": 3,
+  "config": {
+    "nTubes": 5,
+    "tH": 5,
+    "nBuf": 0,
+    "moveLimit": 30
+  },
+  "colors": [
+    {
+      "hex": "#e74c3c",
+      "name": "Red"
+    },
+    {
+      "hex": "#3498db",
+      "name": "Blue"
+    },
+    {
+      "hex": "#2ecc71",
+      "name": "Green"
+    },
+    {
+      "hex": "#f39c12",
+      "name": "Orange"
+    },
+    {
+      "hex": "#9b59b6",
+      "name": "Purple"
+    },
+    {
+      "hex": "#db0f9b",
+      "name": "Rose"
+    },
+    {
+      "hex": "#1df500",
+      "name": "Aqua"
+    },
+    {
+      "hex": "#eeff00",
+      "name": "Maroon"
+    },
+    {
+      "hex": "#420066",
+      "name": "Olive"
+    },
+    {
+      "hex": "#ffd740",
+      "name": "Slate"
+    },
+    {
+      "hex": "#9be4fd",
+      "name": "Peach"
+    },
+    {
+      "hex": "#4ecdc4",
+      "name": "Indigo"
+    },
+    {
+      "hex": "#ffffff",
+      "name": "Blush"
+    },
+    {
+      "hex": "#f39c12",
+      "name": "Mint"
+    }
+  ],
+  "mechs": [],
+  "extraTile": {
+    "color": "#ffffff",
+    "mech": null
+  },
+  "stacks": [
+    [
+      {
+        "color": "#ffd740",
+        "mech": null
+      },
+      {
+        "color": "#db0f9b",
+        "mech": null
+      },
+      {
+        "color": "#1df500",
+        "mech": null
+      },
+      {
+        "color": "#ffd740",
+        "mech": null
+      },
+      {
+        "color": "#9be4fd",
+        "mech": null
+      }
+    ],
+    [
+      {
+        "color": "#1df500",
+        "mech": null
+      },
+      {
+        "color": "#ffd740",
+        "mech": null
+      },
+      {
+        "color": "#ffffff",
+        "mech": null
+      },
+      {
+        "color": "#9be4fd",
+        "mech": null
+      },
+      {
+        "color": "#1df500",
+        "mech": null
+      }
+    ],
+    [
+      {
+        "color": "#db0f9b",
+        "mech": null
+      },
+      {
+        "color": "#ffffff",
+        "mech": null
+      },
+      {
+        "color": "__RAINBOW__",
+        "mech": null
+      },
+      {
+        "color": "#ffffff",
+        "mech": null
+      },
+      {
+        "color": "#db0f9b",
+        "mech": null
+      }
+    ],
+    [
+      {
+        "color": "#db0f9b",
+        "mech": null
+      },
+      {
+        "color": "#9be4fd",
+        "mech": null
+      },
+      {
+        "color": "#ffffff",
+        "mech": null
+      },
+      {
+        "color": "#ffd740",
+        "mech": null
+      },
+      {
+        "color": "#db0f9b",
+        "mech": null
+      }
+    ],
+    [
+      {
+        "color": "#9be4fd",
+        "mech": null
+      },
+      {
+        "color": "#1df500",
+        "mech": null
+      },
+      {
+        "color": "#1df500",
+        "mech": null
+      },
+      {
+        "color": "#9be4fd",
+        "mech": null
+      },
+      {
+        "color": "#ffd740",
+        "mech": null
+      }
+    ]
+  ],
+  "stackProps": [
+    {
+      "frozenLayers": 0
+    },
+    {
+      "frozenLayers": 0
+    },
+    {
+      "frozenLayers": 0
+    },
+    {
+      "frozenLayers": 0
+    },
+    {
+      "frozenLayers": 0
+    }
+  ]
+}

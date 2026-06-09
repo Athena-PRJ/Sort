@@ -59,9 +59,18 @@ namespace Sort.EditorTools
                     $"To make this level valid:\n" +
                     $"  • Use exactly {result.columnCount} distinct non-Rainbow colors.\n" +
                     $"  • Each of those colors must appear ≥ {result.rowCount} times across columns + the held piece.\n" +
-                    $"  • Questionmarks count as their underlying color. Rainbow pieces don't count.",
+                    $"  • Questionmarks count as their underlying color. Rainbow pieces don't count.\n" +
+                    $"  • A column can't be both a Frozen (Break Wall) and a Lock Color Stack column.\n" +
+                    $"  • Gated columns must be unlockable by completing others (no freeze deadlock).\n" +
+                    $"  • An Only Stack Sort column's color must exist, and no more columns can be restricted\n" +
+                    $"    to a color than the level can make of it.",
                     MessageType.Warning);
             }
+
+            // Warnings (non-blocking) — shown whether or not the level is valid.
+            if (result.warnings != null)
+                foreach (var warn in result.warnings)
+                    EditorGUILayout.HelpBox(warn, MessageType.Warning);
 
             if (GUILayout.Button("Re-validate"))
             {

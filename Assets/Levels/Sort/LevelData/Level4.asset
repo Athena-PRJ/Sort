@@ -14,10 +14,15 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Sort.LevelData
   levelNumber: 4
   difficulty: 1
-  piecePrefab: {fileID: 2697371083170223703, guid: 12b960f967f10bf4dad210ed95c13691, type: 3}
-  theme: 1
+  piecePrefab: {fileID: 8595755308906869233, guid: dfdf8c852b0e5104184c4e0f60f2ebb9, type: 3}
+  paletteStyle: 1
   mainBoardSprite: {fileID: 21300000, guid: 8e96ba1135710fa49bf8881599e85d0e, type: 3}
   backgroundSprite: {fileID: 0}
+  outSprite: {fileID: 0}
+  placeSprite: {fileID: 0}
+  notDoneSprite: {fileID: 0}
+  doneSprite: {fileID: 0}
+  tickSprite: {fileID: 0}
   moveLimit: 20
   startingHeldPiece:
     color: 0
@@ -40,6 +45,11 @@ MonoBehaviour:
     - color: 0
       isRainbow: 0
       isQuestionmark: 0
+    lockColorStack: 0
+    requiredColor: 
+    lockColorUnlockThreshold: 1
+    onlyStackSort: 0
+    onlyStackColor: 
   - pieces:
     - color: 2
       isRainbow: 0
@@ -56,6 +66,11 @@ MonoBehaviour:
     - color: 2
       isRainbow: 0
       isQuestionmark: 0
+    lockColorStack: 0
+    requiredColor: 
+    lockColorUnlockThreshold: 1
+    onlyStackSort: 0
+    onlyStackColor: 
   - pieces:
     - color: 1
       isRainbow: 0
@@ -72,6 +87,11 @@ MonoBehaviour:
     - color: 1
       isRainbow: 0
       isQuestionmark: 0
+    lockColorStack: 0
+    requiredColor: 
+    lockColorUnlockThreshold: 1
+    onlyStackSort: 0
+    onlyStackColor: 
   - pieces:
     - color: 3
       isRainbow: 0
@@ -88,6 +108,11 @@ MonoBehaviour:
     - color: 8
       isRainbow: 0
       isQuestionmark: 0
+    lockColorStack: 0
+    requiredColor: 
+    lockColorUnlockThreshold: 1
+    onlyStackSort: 0
+    onlyStackColor: 
   - pieces:
     - color: 8
       isRainbow: 0
@@ -104,6 +129,13 @@ MonoBehaviour:
     - color: 2
       isRainbow: 0
       isQuestionmark: 0
+    lockColorStack: 0
+    requiredColor: 
+    lockColorUnlockThreshold: 1
+    onlyStackSort: 0
+    onlyStackColor: 
+  ties: []
+  frozenColumns: []
   nextLevel: {fileID: 11400000, guid: fa6976ec0b2ad3e4d8644e30cd921991, type: 2}
   questionmarkRevealFromBottom: 1
   coinReward: 50

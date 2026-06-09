@@ -7,7 +7,7 @@ namespace Sort
     [RequireComponent(typeof(Collider))]
     public class Piece : MonoBehaviour
     {
-        [SerializeField] private PieceColor color;
+        [SerializeField] private string color;
         [SerializeField] private bool isRainbow;
         [SerializeField] private bool isQuestionmark;
         [SerializeField] private bool revealed = true;
@@ -55,9 +55,23 @@ namespace Sort
         // (one that reads _BaseMap_ST), restore the rainbowScrollVelocity field + Update() block
         // from git history.
 
+        // Runtime palette pushed by LevelLoader from PrefabRegistry's entry for this piece prefab.
+        // When non-null, each piece samples its BaseMap from the palette indexed by Color instead
+        // of tinting the default material — gives crisp per-color art without 1-material-per-color
+        // asset proliferation. Cleared if palette has no texture for this piece's color (falls back
+        // to tint behaviour for that one color).
+        ColorPalette palette;
+
         MaterialPropertyBlock mpb;
         MeshRenderer[] cachedRenderers;
         Material[] cachedOriginalMaterials;
+        // Per-renderer material instances used for the palette path. MaterialPropertyBlock texture
+        // overrides on `_BaseMap` are unreliable on URP/Lit across Unity versions — sometimes they
+        // silently no-op while color MPBs work fine. Modifying a material INSTANCE directly is the
+        // bulletproof approach: the shared .mat asset stays untouched (Unity auto-clones via the
+        // `Renderer.material` getter), and the instance's _BaseMap is read by the shader normally.
+        // One instance per renderer per Piece; cleaned up automatically when the GameObject dies.
+        Material[] paletteMaterialInstances;
 
         // Captured in Awake from the prefab's authored localScale. ApplyFitScale multiplies this
         // baseline by the fit factor — never overwrites localScale outright. That preserves the
@@ -72,10 +86,23 @@ namespace Sort
         Quaternion restRotation = Quaternion.identity;
         bool restRotationCaptured;
 
-        public PieceColor Color => color;
+        public string Color => color;
         public bool IsRainbow => isRainbow;
         public bool IsQuestionmark => isQuestionmark;
         public bool IsRevealed => revealed;
+
+        // Runtime-only tie binding: when this piece is tied to a neighbour in an adjacent column,
+        // this points to that piece (and vice versa). Cleared when the tie breaks (Phase C logic).
+        // Designer authors initial ties via LevelData.ties; LevelLoader wires this up at level build.
+        Piece tiedPartner;
+
+        /// <summary>The piece this one is currently tied to in an adjacent column, or null. See <see cref="LevelData.TieConfig"/>.</summary>
+        public Piece TiedPartner => tiedPartner;
+        public bool IsTied => tiedPartner != null;
+
+        /// <summary>Wires the tie binding (called by LevelLoader after instantiating a tied pair).
+        /// Pass null to clear (called by Phase C tie-break logic).</summary>
+        public void SetTiedPartner(Piece partner) => tiedPartner = partner;
 
         /// <summary>
         /// The local rotation this piece should sit at when at rest (in a column slot or held in hand).
@@ -266,10 +293,12 @@ namespace Sort
             // If a material override exists for this state, keep the tint neutral so the material's texture shows pure.
             if (isRainbow && rainbowMaterial != null) return UnityEngine.Color.white;
             if (isQuestionmark && !revealed && questionmarkMaterial != null) return UnityEngine.Color.white;
-            // No override: fall back to placeholder color so the player can at least tell the piece is special.
+            // No override: rainbow / hidden-Q? use their placeholder colors. Normal colors no longer
+            // carry a Unity tint (color is now a palette NAME) — the palette path supplies the texture,
+            // so the legacy tint path leaves the material's own color untouched (white = no multiply).
             if (isRainbow) return rainbowDisplayColor;
             if (isQuestionmark && !revealed) return questionmarkDisplayColor;
-            return color.ToUnityColor();
+            return UnityEngine.Color.white;
         }
 
         /// <summary>Applies the correct material AND tint for the current state to every target renderer.</summary>
@@ -285,35 +314,82 @@ namespace Sort
             // questionmarkDisplayColor multiplies the original material's Base Map texture — and that
             // texture is colored (e.g. Box's red), so the result looks like dark red instead of true
             // gray. Fix: override _BaseMap with a plain white texture via MPB so the gray tint shows
-            // pure. White is the multiplicative identity for shader sampling — texture-color out =
-            // tint-color in. Cleared (texture override removed) the moment piece is no longer hidden.
+            // pure.
             bool forceFlatGray = isQuestionmark && !revealed && questionmarkMaterial == null;
 
+            // Palette path: when a ColorPalette is wired (LevelLoader pushed one from LevelData),
+            // and we're in a normal color state (no rainbow override, no hidden Q?), sample the
+            // BaseMap directly from the palette indexed by this.color. _BaseColor stays white so
+            // there's no multiplicative tint on top — the texture IS the color.
+            Texture2D paletteBaseMap = null;
+            if (palette != null && overrideMat == null && !forceFlatGray && !isRainbow)
+                paletteBaseMap = palette.GetBaseMap(color);
+
             if (mpb == null) mpb = new MaterialPropertyBlock();
+
+            // Allocate the per-renderer palette instance cache lazily.
+            if (paletteBaseMap != null && (paletteMaterialInstances == null || paletteMaterialInstances.Length != renderers.Length))
+                paletteMaterialInstances = new Material[renderers.Length];
 
             for (int i = 0; i < renderers.Length; i++)
             {
                 var r = renderers[i];
                 if (r == null) continue;
 
-                // Swap to override material when in a special state, restore original otherwise.
+                // Decide which material this renderer should use this frame:
+                //   - overrideMat (rainbow / QM material): shared asset, no instance needed
+                //   - palette + normal state: per-renderer INSTANCE so we can write _BaseMap directly
+                //   - legacy tint: cached SHARED original material + MPB color
                 if (overrideMat != null)
                 {
                     r.sharedMaterial = overrideMat;
+                    r.SetPropertyBlock(null);   // wipe any leftover MPB from previous state
                 }
-                else if (cachedOriginalMaterials != null && i < cachedOriginalMaterials.Length && cachedOriginalMaterials[i] != null)
+                else if (paletteBaseMap != null)
                 {
-                    r.sharedMaterial = cachedOriginalMaterials[i];
+                    // Lazy-create the per-renderer instance the first time we enter the palette path.
+                    if (paletteMaterialInstances[i] == null && cachedOriginalMaterials != null
+                        && i < cachedOriginalMaterials.Length && cachedOriginalMaterials[i] != null)
+                    {
+                        paletteMaterialInstances[i] = new Material(cachedOriginalMaterials[i]);
+                        paletteMaterialInstances[i].name = cachedOriginalMaterials[i].name + " (palette)";
+                    }
+                    var instance = paletteMaterialInstances[i];
+                    if (instance != null)
+                    {
+                        // Write directly on the material instance — bypasses MPB texture-override quirks.
+                        // `_BaseMap`/`_BaseColor` are the modern URP/Lit property names; the legacy
+                        // `_MainTex`/`_Color` aliases are also set for shaders that still read those.
+                        instance.SetTexture("_BaseMap", paletteBaseMap);
+                        instance.SetTexture("_MainTex", paletteBaseMap);
+                        // UnityEngine.Color qualified for clarity (this class also has a `Color` string
+                        // property — the color NAME — though it no longer shadows the UnityEngine type).
+                        instance.SetColor("_BaseColor", UnityEngine.Color.white);
+                        instance.SetColor("_Color", UnityEngine.Color.white);
+                        if (palette.ambientOcclusionMap != null)
+                        {
+                            instance.SetTexture("_OcclusionMap", palette.ambientOcclusionMap);
+                            instance.SetFloat("_OcclusionStrength", palette.ambientOcclusionStrength);
+                        }
+                        r.sharedMaterial = instance;
+                    }
+                    r.SetPropertyBlock(null);   // MPB unused in palette path
                 }
+                else
+                {
+                    // Legacy tint path: cached shared original + MPB for color multiplication.
+                    if (cachedOriginalMaterials != null && i < cachedOriginalMaterials.Length && cachedOriginalMaterials[i] != null)
+                        r.sharedMaterial = cachedOriginalMaterials[i];
 
-                // Reset MPB each pass so stale overrides (e.g. _BaseMap from a previous hidden state,
-                // or _BaseMap_ST from rainbow scroll) don't leak into the new state.
-                r.SetPropertyBlock(null);
-                mpb.Clear();
-                mpb.SetColor("_BaseColor", tintColor);
-                if (forceFlatGray)
-                    mpb.SetTexture("_BaseMap", Texture2D.whiteTexture);
-                r.SetPropertyBlock(mpb);
+                    r.SetPropertyBlock(null);
+                    mpb.Clear();
+                    mpb.SetColor("_BaseColor", tintColor);
+                    // For hidden Q? without a custom material, force _BaseMap to white so the gray
+                    // tint shows pure instead of multiplying with the material's colored texture.
+                    if (forceFlatGray)
+                        mpb.SetTexture("_BaseMap", Texture2D.whiteTexture);
+                    r.SetPropertyBlock(mpb);
+                }
             }
 
             // Show the '?' overlay only when this piece is an unrevealed Questionmark.
@@ -321,7 +397,18 @@ namespace Sort
                 questionmarkOverlay.SetActive(isQuestionmark && !revealed);
         }
 
-        public void SetColor(PieceColor c) { color = c; ApplyVisualState(); }
+        public void SetColor(string c) { color = c; ApplyVisualState(); }
+
+        /// <summary>
+        /// Wires the runtime color palette. Called by LevelLoader after Instantiate; the next
+        /// ApplyVisualState call (or SetConfig, which calls into it) will sample the BaseMap
+        /// from <paramref name="p"/> instead of tinting the default material. Pass null to
+        /// revert to the legacy tint-the-default-material behaviour.
+        /// </summary>
+        public void SetPalette(ColorPalette p)
+        {
+            palette = p;
+        }
 
         /// <summary>Configures this piece from a LevelData PieceConfig.</summary>
         public void SetConfig(PieceConfig config)
@@ -521,6 +608,51 @@ namespace Sort
 
             transform.localPosition = startLocalPos;
             transform.rotation = startRotWorld;
+        }
+
+        /// <summary>
+        /// Game-feel "reject" wobble: oscillates the piece's local rotation around its forward axis
+        /// with a decaying amplitude, then restores the exact starting rotation. Used by PlayerHand
+        /// when a tap is rejected (frozen column / Only Stack Sort color mismatch). Tunable by the
+        /// caller (duration / peak angle / oscillation count). Does not move the piece.
+        /// </summary>
+        public IEnumerator AnimateShake(float duration, float maxAngleDeg, float oscillations)
+        {
+            if (duration <= 0f) yield break;
+            Quaternion baseRot = transform.localRotation;
+            float t = 0f;
+            while (t < duration)
+            {
+                t += Time.deltaTime;
+                float u = Mathf.Clamp01(t / duration);
+                float decay = 1f - u;                                          // amplitude fades to 0
+                float angle = Mathf.Sin(u * oscillations * Mathf.PI * 2f) * maxAngleDeg * decay;
+                transform.localRotation = baseRot * Quaternion.AngleAxis(angle, Vector3.forward);
+                yield return null;
+            }
+            transform.localRotation = baseRot;
+        }
+
+        /// <summary>
+        /// Idle "wind gust" sway: after an optional start delay (used to ripple the gust across columns),
+        /// tilts the piece around its forward axis up to <paramref name="maxAngleDeg"/> following a single
+        /// eased half-wave (0 → peak → 0), then restores the starting rotation. Driven by BoardIdleAnimator.
+        /// </summary>
+        public IEnumerator AnimateWindSway(float maxAngleDeg, float duration, float startDelay)
+        {
+            if (duration <= 0f) yield break;
+            if (startDelay > 0f) yield return new WaitForSeconds(startDelay);
+            Quaternion baseRot = transform.localRotation;
+            float t = 0f;
+            while (t < duration)
+            {
+                t += Time.deltaTime;
+                float u = Mathf.Clamp01(t / duration);
+                float angle = Mathf.Sin(u * Mathf.PI) * maxAngleDeg;           // single gust: rise then return
+                transform.localRotation = baseRot * Quaternion.AngleAxis(angle, Vector3.forward);
+                yield return null;
+            }
+            transform.localRotation = baseRot;
         }
     }
 }

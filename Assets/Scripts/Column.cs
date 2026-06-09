@@ -14,6 +14,67 @@ namespace Sort
         public bool IsLocked { get; private set; }
         public event Action<Column> Locked;
 
+        // Frozen state (Break Wall Stack mechanic). >0 = frozen with that many OTHER columns
+        // remaining to unlock; 0 = not frozen. Disables child colliders so the column can't be
+        // tapped / Switch'd / Magnet'd while frozen. Independent from IsLocked — a frozen column
+        // cannot lock until it unfreezes (see EvaluateLock guard below).
+        [NonSerialized] int frozenUnlockThreshold;
+
+        // Lock Color Stack (sibling of Break Wall Stack). When frozenLockColor is true, only columns
+        // locked in frozenRequiredColor count toward frozenUnlockThreshold (instead of ANY locked
+        // column). Both are set by Freeze() and cleared by Unfreeze().
+        [NonSerialized] bool frozenLockColor;
+        [NonSerialized] string frozenRequiredColor;
+
+        /// <summary>True while this column is frozen by a Break Wall Stack / Lock Color Stack gate.</summary>
+        public bool IsFrozen => frozenUnlockThreshold > 0;
+
+        /// <summary>How many columns must lock before this one unfreezes (0 if not frozen).</summary>
+        public int FrozenUnlockThreshold => frozenUnlockThreshold;
+
+        /// <summary>True if this frozen column uses the Lock Color Stack rule (color-filtered unlock).</summary>
+        public bool FrozenLockColor => frozenLockColor;
+
+        /// <summary>The color NAME whose locked columns count toward unlock — only meaningful when <see cref="FrozenLockColor"/>.</summary>
+        public string FrozenRequiredColor => frozenRequiredColor;
+
+        /// <summary>Fires whenever the column transitions in or out of the frozen state. UI/overlay listens.</summary>
+        public event Action<Column> FrozenChanged;
+
+        // Only Stack Sort mechanic: when true this column accepts ONLY pieces whose color NAME equals
+        // onlyStackColor (rainbows are wild). Enforced in PlayerHand.HandleColumnClick. A permanent
+        // per-level property — set once at level build.
+        [NonSerialized] bool onlyStackSort;
+        [NonSerialized] string onlyStackColor;
+
+        /// <summary>True if this column only accepts pieces of <see cref="OnlyStackColor"/> (Only Stack Sort).</summary>
+        public bool IsOnlyStackSort => onlyStackSort;
+
+        /// <summary>The single color NAME this column accepts — only meaningful when <see cref="IsOnlyStackSort"/>.</summary>
+        public string OnlyStackColor => onlyStackColor;
+
+        /// <summary>
+        /// Marks this column as Only Stack Sort: it will accept only pieces of <paramref name="color"/>.
+        /// Called by LevelLoader at level build from the ColumnConfig. Permanent for the level.
+        /// </summary>
+        public void SetOnlyStackSort(string color)
+        {
+            onlyStackSort = true;
+            onlyStackColor = color;
+        }
+
+        /// <summary>
+        /// True if <paramref name="p"/> may be placed into this column under the Only Stack Sort rule:
+        /// always true when the column isn't Only-Stack-Sort, otherwise only for a matching color or a
+        /// Rainbow (wild). Null pieces are rejected.
+        /// </summary>
+        public bool AcceptsPiece(Piece p)
+        {
+            if (!onlyStackSort) return true;
+            if (p == null) return false;
+            return p.IsRainbow || p.Color == onlyStackColor;
+        }
+
         // Read-only access for the animation system in PlayerHand (which needs to know
         // where each slot lives in local space to lerp pieces between slots).
         public Vector3 LayoutDirection => layoutDirection;
@@ -71,10 +132,18 @@ namespace Sort
         /// True if all pieces share the same color AND no Rainbow or hidden Questionmark is present.
         /// Rainbows must be ejected (replaced by a real piece) before a column can lock.
         /// </summary>
-        public bool IsMonoColor()
+        public bool IsMonoColor() => TryGetMonoColor(out _);
+
+        /// <summary>
+        /// Like <see cref="IsMonoColor"/> but also outputs the shared color when true. Returns false
+        /// (and <paramref name="color"/> = default) if the column is empty, mixed-color, or still has a
+        /// Rainbow / hidden Questionmark. Used by Lock Color Stack to know which color a locked column is.
+        /// </summary>
+        public bool TryGetMonoColor(out string color)
         {
+            color = null;
             bool seenAny = false;
-            PieceColor first = default;
+            string first = null;
             for (int i = 0; i < transform.childCount; i++)
             {
                 var p = transform.GetChild(i).GetComponent<Piece>();
@@ -84,7 +153,9 @@ namespace Sort
                 if (!seenAny) { first = p.Color; seenAny = true; }
                 else if (p.Color != first) return false;
             }
-            return seenAny;
+            if (!seenAny) return false;
+            color = first;
+            return true;
         }
 
         /// <summary>
@@ -93,7 +164,7 @@ namespace Sort
         /// In that case, the player is one ejection-swap away from completing the column,
         /// so the Rainbow should sink to the bottom to enable it.
         /// </summary>
-        public bool ShouldSinkRainbow(PieceColor heldColor)
+        public bool ShouldSinkRainbow(string heldColor)
         {
             bool seenAny = false;
             int firstRainbowSlot = -1;
@@ -186,7 +257,14 @@ namespace Sort
         public void EvaluateLock()
         {
             if (IsLocked) return;
+            // Frozen columns can never lock — they're behind a "complete N others first" gate,
+            // so they must unfreeze before they're even allowed to be evaluated for win condition.
+            if (IsFrozen) return;
             if (!IsMonoColor()) return;
+            // Tie binding takes priority over lock — a tied column shouldn't lock while its pieces
+            // are still bound to a neighbour, because the binding can drag locked pieces around on
+            // a tied shift, which would visually contradict the "locked" state.
+            if (HasActiveTie()) return;
 
             IsLocked = true;
             for (int i = 0; i < transform.childCount; i++)
@@ -195,6 +273,61 @@ namespace Sort
                 if (col != null) col.enabled = false;
             }
             Locked?.Invoke(this);
+        }
+
+        /// <summary>
+        /// Marks the column as frozen behind <paramref name="threshold"/> column unlocks. Interaction
+        /// is blocked by the IsFrozen guards (not by disabling colliders) so a tap still registers and
+        /// PlayerHand can play reject feedback. Caller (LevelLoader at level build, GameManager on Undo)
+        /// is responsible for spawning the matching FrozenOverlay visual.
+        /// No-op if threshold ≤ 0 (use Unfreeze for that). Fires <see cref="FrozenChanged"/>.
+        ///
+        /// Pass <paramref name="lockColor"/> = true (with <paramref name="requiredColor"/>) for the
+        /// Lock Color Stack variant, where only columns completed in that color count toward the
+        /// threshold. Default (false) = Break Wall Stack: any locked column counts.
+        /// </summary>
+        public void Freeze(int threshold, bool lockColor = false, string requiredColor = null)
+        {
+            if (threshold <= 0) return;
+            frozenUnlockThreshold = threshold;
+            frozenLockColor = lockColor;
+            frozenRequiredColor = requiredColor;
+            // NOTE: child colliders are intentionally LEFT ENABLED. Every interaction path already
+            // guards on IsFrozen (HandleColumnClick / Switch / Magnet / tied-chain / rainbow-sink), so
+            // the move is blocked there — and keeping colliders enabled lets a tap on a frozen column
+            // register so PlayerHand can play the "rejected" shake feedback. (Lock, by contrast, DOES
+            // disable colliders since a completed column should be fully inert.)
+            FrozenChanged?.Invoke(this);
+        }
+
+        /// <summary>
+        /// Removes the frozen state, re-enabling every piece's collider so the column becomes playable
+        /// again. Called by GameManager when the unlock-threshold is met. No-op if not currently frozen.
+        /// Does NOT auto-trigger EvaluateLock — the player still has to actually solve this column
+        /// after it unfreezes. Fires <see cref="FrozenChanged"/>.
+        /// </summary>
+        public void Unfreeze()
+        {
+            if (!IsFrozen) return;
+            frozenUnlockThreshold = 0;
+            frozenLockColor = false;
+            for (int i = 0; i < transform.childCount; i++)
+            {
+                var col = transform.GetChild(i).GetComponent<Collider>();
+                if (col != null) col.enabled = true;
+            }
+            FrozenChanged?.Invoke(this);
+        }
+
+        /// <summary>True if any child piece still has <see cref="Piece.IsTied"/>.</summary>
+        public bool HasActiveTie()
+        {
+            for (int i = 0; i < transform.childCount; i++)
+            {
+                var p = transform.GetChild(i).GetComponent<Piece>();
+                if (p != null && p.IsTied) return true;
+            }
+            return false;
         }
 
         public void Unlock()

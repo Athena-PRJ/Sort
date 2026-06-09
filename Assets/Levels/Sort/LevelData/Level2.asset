@@ -15,29 +15,46 @@ MonoBehaviour:
   levelNumber: 2
   difficulty: 0
   piecePrefab: {fileID: 2697371083170223703, guid: 12b960f967f10bf4dad210ed95c13691, type: 3}
-  theme: 1
+  paletteStyle: 1
   mainBoardSprite: {fileID: 21300000, guid: d324fbb057fd59c41b5aeb63549d11ae, type: 3}
   backgroundSprite: {fileID: 21300000, guid: c0c20495a499db8468d38f8e9e9ad488, type: 3}
+  outSprite: {fileID: 3286163911610860551, guid: 4b2d94d2e432b1b409114b8ba3fc27f4, type: 3}
+  placeSprite: {fileID: 3286163911610860551, guid: 63d698cf986b7a643b613703f7332ba3, type: 3}
+  notDoneSprite: {fileID: 3286163911610860551, guid: c3440aec7d489ef4aaee70611c48d8d2, type: 3}
+  doneSprite: {fileID: 3286163911610860551, guid: 0e76e7708c1fe6e46885085b8cbb20fc, type: 3}
+  tickSprite: {fileID: 3286163911610860551, guid: 8470cefae9c15c847b6e1fe7514c88a7, type: 3}
   moveLimit: 20
   startingHeldPiece:
-    color: 1
+    color: Skyblue
     isRainbow: 0
     isQuestionmark: 0
   columns:
   - pieces:
-    - color: 0
+    - color: Lime
       isRainbow: 0
       isQuestionmark: 0
-    - color: 0
-      isRainbow: 0
-      isQuestionmark: 0
-  - pieces:
-    - color: 9
+    - color: Magenta
       isRainbow: 1
       isQuestionmark: 0
-    - color: 1
+    lockColorStack: 0
+    requiredColor: Purple
+    lockColorUnlockThreshold: 1
+    onlyStackSort: 0
+    onlyStackColor: Skyblue
+  - pieces:
+    - color: Skyblue
       isRainbow: 0
       isQuestionmark: 0
+    - color: Lime
+      isRainbow: 0
+      isQuestionmark: 0
+    lockColorStack: 0
+    requiredColor: Skyblue
+    lockColorUnlockThreshold: 1
+    onlyStackSort: 0
+    onlyStackColor: Blue
+  ties: []
+  frozenColumns: []
   nextLevel: {fileID: 11400000, guid: dc3bbbb0cdc04b24eb7c0ebe712e7793, type: 2}
   questionmarkRevealFromBottom: 1
   coinReward: 20

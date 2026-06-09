@@ -96,6 +96,17 @@ namespace Sort
                  "Each LevelData picks one of these via its piecePrefab dropdown.")]
         public GameObject piecePrefab;
 
+        [Tooltip("PASTEL color palette for this prefab — soft, muted colors (e.g. Box_pastel_red.png). " +
+                 "Set once here; every level using this prefab and PaletteStyle.Pastel inherits it. " +
+                 "Leave null to fall back to tint-the-default-material.")]
+        [UnityEngine.Serialization.FormerlySerializedAs("colorPalette")]
+        public ColorPalette palettePastel;
+
+        [Tooltip("PLAIN (trơn) color palette for this prefab — vibrant, saturated colors (e.g. Box_red.png). " +
+                 "Set once here; every level using this prefab and PaletteStyle.Plain inherits it. " +
+                 "Leave null to fall back to tint-the-default-material.")]
+        public ColorPalette palettePlain;
+
         [Tooltip("Standard piece localScale at the 3x3 baseline grid. Tune this until the piece looks the right " +
                  "size relative to the MainBoard frame at a 3x3 level — that's the authored reference. Auto-fit " +
                  "(per-level F multiplier on Board.transform) then scales pieces for other grid sizes (2x2, 4x4, " +

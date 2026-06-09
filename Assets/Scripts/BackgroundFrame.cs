@@ -11,7 +11,8 @@ namespace Sort
     [RequireComponent(typeof(Image))]
     public class BackgroundFrame : MonoBehaviour
     {
-        [Tooltip("Shown when LevelData has no backgroundSprite assigned AND LevelLoader has no defaultBackgroundSprite either.")]
+        [Tooltip("Shown when the level's LevelData has no backgroundSprite assigned. Each level should set " +
+                 "its own backgroundSprite; this is just a last-resort placeholder.")]
         [SerializeField] private Sprite fallbackSprite;
 
         Image image;
@@ -32,7 +33,6 @@ namespace Sort
 
             var loader = LevelLoader.Instance;
             Sprite chosen = loader != null && loader.CurrentLevel != null ? loader.CurrentLevel.backgroundSprite : null;
-            if (chosen == null && loader != null) chosen = loader.DefaultBackgroundSprite;
             if (chosen == null) chosen = fallbackSprite;
 
             if (chosen != null) image.sprite = chosen;

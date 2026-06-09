@@ -4,92 +4,54 @@ using UnityEngine;
 namespace Sort
 {
     /// <summary>
-    /// Procedurally builds the decorative board as a frame around the piece grid, plus per-column
-    /// indicators (not-done base + tick overlay) above and 'out' arrows below.
+    /// Spawns the per-column STATUS UI around the gameplay grid: a "not-done → done + tick" icon ABOVE
+    /// each column and an "out" arrow BELOW each column. Sprites come from the active LevelData.
     ///
-    /// Each part type is sized independently so the frame fits any grid size:
-    ///   - center      : per-cell fill (its size = the gameplay column/piece spacing)
-    ///   - top/bottom  : horizontal borders (own thickness, one per column)
-    ///   - left/right  : vertical borders — 1 'first' cap + many 'middle' tiles + 1 'last' cap
-    ///   - corners     : own size
-    ///   - indicators  : own size; tick layers on top of not-done
+    /// The board renders in a TILTED 3D plane (≈85° on X) and is auto-fit per level, so the icon
+    /// placement + size are derived RELATIVE TO THE BOARD'S ACTUAL EDGES at build time — they adapt to
+    /// any grid (2x2, 4x4, …) automatically. The tunable numbers below are FRACTIONS of the board's
+    /// height (so they stay proportional), plus the in-plane rotation. Only X is auto-aligned per column.
     ///
-    /// NOTE: 'place' (the slot behind the held piece) is NOT part of this board — place it manually
-    /// under the HandAnchor. The board cells use 'center'.
-    ///
-    /// Lives as a child of the Board so it inherits the auto-fit scale.
+    /// The board's Board-local vertical extent is read from THIS MainBoard's sprite: localScale.y ×
+    /// sprite.height (the X≈90° board rotation maps the sprite's height onto Board-local Z). Indicators
+    /// parent to the BOARD (uniform F) so MainBoard's non-uniform image-fit scale doesn't distort them.
     /// </summary>
     public class MainBoardBuilder : MonoBehaviour
     {
-        [Header("Frame sprites")]
-        [SerializeField] private Sprite topLeftCorner;
-        [SerializeField] private Sprite topRightCorner;
-        [SerializeField] private Sprite bottomLeftCorner;
-        [SerializeField] private Sprite bottomRightCorner;
-        [SerializeField] private Sprite topEdge;
-        [SerializeField] private Sprite bottomEdge;
-        [SerializeField] private Sprite leftFirst;
-        [SerializeField] private Sprite leftMiddle;
-        [SerializeField] private Sprite leftLast;
-        [SerializeField] private Sprite rightFirst;
-        [SerializeField] private Sprite rightMiddle;
-        [SerializeField] private Sprite rightLast;
-        [Tooltip("Per-cell fill behind the pieces.")]
-        [SerializeField] private Sprite center;
+        [Header("Icon rotation (lie in the board plane)")]
+        [Tooltip("Local rotation (Euler°) so icons lie FLAT in the tilted board plane and face the camera. " +
+                 "Match the board tilt — ≈ (85, 0, 0) on the standard board.")]
+        [SerializeField] private Vector3 indicatorRotation = new Vector3(85f, 0f, 0f);
 
-        [Header("Indicator sprites")]
-        [Tooltip("Shown while the column is unsolved.")]
-        [SerializeField] private Sprite notDoneSprite;
-        [Tooltip("Replaces not-done (same size) when the column is solved.")]
-        [SerializeField] private Sprite doneSprite;
-        [Tooltip("Tick overlaid on top of 'done' when the column is solved.")]
-        [SerializeField] private Sprite tickSprite;
-        [SerializeField] private Sprite outSprite;
+        [Header("Size — fraction of the board's height (auto-scales per grid)")]
+        [Tooltip("Status + out icon size as a fraction of the board's height. ~0.05 ≈ the old 0.5 scale on " +
+                 "the standard board, but now it shrinks/grows with the board automatically.")]
+        [SerializeField] private float indicatorSizeFraction = 0.05f;
+        [Tooltip("Tick overlay size as a fraction of the board's height (usually a bit smaller than the icon).")]
+        [SerializeField] private float tickSizeFraction = 0.03f;
 
-        [Header("Cell size")]
-        [Tooltip("If true, cellWidth/cellHeight are read from Board.columnSpacing and the first Column's pieceSpacing at build time. Keep this ON unless you have a specific reason to override.")]
-        [SerializeField] private bool autoSyncCellSize = true;
-        [Tooltip("Manual override — used only when Auto Sync Cell Size is OFF. When auto-sync is on, these stay informational only.")]
-        [SerializeField] private float cellWidth = 2.7f;
-        [SerializeField] private float cellHeight = 3.8f;
+        [Header("Placement — fractions of board height (auto-adapt per grid)")]
+        [Tooltip("Gap of the TOP status icon from the board's top edge, as a fraction of board height. " +
+                 "0 = right at the edge, + = further up, - = slightly onto the board.")]
+        [SerializeField] private float statusEdgeGapFraction = 0f;
+        [Tooltip("Gap of the BOTTOM out arrow from the board's bottom edge, as a fraction of board height. " +
+                 "0 = right at the edge, + = further below.")]
+        [SerializeField] private float outEdgeGapFraction = 0f;
+        [Tooltip("How far the icons lift toward the camera (Board-local Y) so they render in front of the " +
+                 "board, as a fraction of board height. Small positive (~0.1) is plenty.")]
+        [SerializeField] private float liftFraction = 0.1f;
 
-        [Header("Outline boost (scale parts up + pull inward)")]
-        [Tooltip("Multiplies every frame part's rendered size. >1 makes all outlines thicker (parts overlap).")]
-        [SerializeField] private float partScale = 1f;
-        [Tooltip("Pulls every border part (edges + corners) toward the board center, so scaling them up doesn't enlarge the overall board.")]
-        [SerializeField] private float borderInset = 0.2f;
+        [Header("Column spacing")]
+        [Tooltip("Horizontal spacing between indicators (column → column). 0 = AUTO: matches " +
+                 "Board.ColumnSpacing so each icon sits over its column. Set > 0 to override.")]
+        [SerializeField] private float columnSpacingOverride = 0f;
 
-        [Header("Top / bottom border thickness")]
-        [SerializeField] private float topHeight = 1.6f;
-        [SerializeField] private float bottomHeight = 2.4f;
-
-        [Header("Side border (1 first + many middle + 1 last)")]
-        [SerializeField] private float sideWidth = 1.77f;
-        [SerializeField] private float sideFirstHeight = 1.0f;
-        [SerializeField] private float sideMiddleHeight = 1.0f;
-        [SerializeField] private float sideLastHeight = 1.0f;
-
-        [Header("Corners")]
-        [SerializeField] private float cornerWidth = 1.88f;
-        [SerializeField] private float cornerHeight = 1.88f;
-        [Tooltip("Sorting order for corners. Higher than the frame so the oversized corners draw over the edges and hide seams.")]
-        [SerializeField] private int cornerSortingOrder = -8;
-
-        [Header("Indicators")]
-        [SerializeField] private float indicatorWidth = 1.88f;
-        [SerializeField] private float indicatorHeight = 1.88f;
-        [SerializeField] private float indicatorAboveGap = 0.2f;
-        [SerializeField] private float outBelowGap = 0.2f;
-        [Tooltip("Tick overlay size — smaller than the indicator so the not-done outline still shows around it.")]
-        [SerializeField] private float tickWidth = 1.2f;
-        [SerializeField] private float tickHeight = 1.2f;
-
-        [Header("Depth & sorting")]
-        [SerializeField] private float frameZ = 0.3f;
-        [SerializeField] private float indicatorZ = -0.1f;
-        [SerializeField] private int frameSortingOrder = -10;
+        [Header("Sorting")]
+        [Tooltip("SpriteRenderer sorting order (tick draws at +1 so it sits over the done icon).")]
         [SerializeField] private int indicatorSortingOrder = 10;
 
+        float cellWidth;
+        Transform indicatorParent;
         readonly List<GameObject> spawned = new();
         int lastCols, lastRows;
         bool dirty;
@@ -108,42 +70,10 @@ namespace Sort
             Build(cols, rows);
         }
 
-        // --- Live tuning -------------------------------------------------------
-
+        // Live tuning: rebuild when a serialized value changes during Play.
         void OnValidate() { if (Application.isPlaying) dirty = true; }
-
-        void Update()
-        {
-            if (dirty && lastCols > 0 && lastRows > 0)
-            {
-                dirty = false;
-                Build(lastCols, lastRows);
-            }
-        }
-
-        [ContextMenu("Rebuild")]
-        void RebuildContext()
-        {
-            if (lastCols > 0 && lastRows > 0) Build(lastCols, lastRows);
-        }
-
-        // --- Build -------------------------------------------------------------
-
-        /// <summary>
-        /// Reads cellWidth from the parent Board.columnSpacing and cellHeight from the first
-        /// Column.pieceSpacing found at runtime. Skips silently if either source isn't available
-        /// (e.g. in edit mode before LevelLoader has spawned columns).
-        /// </summary>
-        void SyncCellSizeFromGameplay()
-        {
-            var board = GetComponentInParent<Board>();
-            if (board != null) cellWidth = board.ColumnSpacing;
-
-            var anyColumn = (GameManager.Instance != null && GameManager.Instance.Columns.Count > 0)
-                ? GameManager.Instance.Columns[0]
-                : null;
-            if (anyColumn != null) cellHeight = anyColumn.PieceSpacing;
-        }
+        void Update() { if (dirty && lastCols > 0) { dirty = false; Build(lastCols, lastRows); } }
+        [ContextMenu("Rebuild")] void RebuildContext() { if (lastCols > 0) Build(lastCols, lastRows); }
 
         public void Build(int cols, int rows)
         {
@@ -151,113 +81,77 @@ namespace Sort
             lastRows = rows;
             Clear();
 
-            // Auto-sync cell size with the gameplay components, so the frame never drifts
-            // when the designer rescales Board.columnSpacing or Column.pieceSpacing.
-            if (autoSyncCellSize) SyncCellSizeFromGameplay();
+            var board = GetComponentInParent<Board>();
+            // Parent to the Board (uniform F) so MainBoard's non-uniform image-fit scale doesn't distort spacing.
+            indicatorParent = board != null ? board.transform : transform;
+            cellWidth = columnSpacingOverride > 0f ? columnSpacingOverride
+                      : (board != null && board.ColumnSpacing > 0f ? board.ColumnSpacing : 2.7f);
 
-            float leftX      = -((cols - 1) * cellWidth) * 0.5f;
-            float bottomRowY  = -(rows - 1) * cellHeight;
-
-            float topEdgeY    = cellHeight * 0.5f + topHeight * 0.5f;
-            float bottomEdgeY  = bottomRowY - cellHeight * 0.5f - bottomHeight * 0.5f;
-            float leftEdgeX    = leftX - cellWidth * 0.5f - sideWidth * 0.5f;
-            float rightEdgeX   = leftX + (cols - 1) * cellWidth + cellWidth * 0.5f + sideWidth * 0.5f;
-
-            // Per-cell center fill — scaled up so neighboring cells overlap, creating inter-cell outlines.
-            if (center != null)
-                for (int c = 0; c < cols; c++)
-                    for (int r = 0; r < rows; r++)
-                        Spawn(center, leftX + c * cellWidth, -r * cellHeight, frameZ, cellWidth * partScale, cellHeight * partScale, frameSortingOrder);
-
-            // Top & bottom edges — scaled up and inset toward center.
-            for (int c = 0; c < cols; c++)
-            {
-                float x = leftX + c * cellWidth;
-                Spawn(topEdge,    x, topEdgeY - borderInset,    frameZ, cellWidth * partScale, topHeight * partScale,    frameSortingOrder);
-                Spawn(bottomEdge, x, bottomEdgeY + borderInset, frameZ, cellWidth * partScale, bottomHeight * partScale, frameSortingOrder);
-            }
-
-            // Side borders — 1 first + many middle + 1 last, inset toward center.
-            BuildSideBorder(leftEdgeX  + borderInset, rows, leftFirst,  leftMiddle,  leftLast);
-            BuildSideBorder(rightEdgeX - borderInset, rows, rightFirst, rightMiddle, rightLast);
-
-            // Corners — oversized, inset diagonally toward center, drawn above the edges to hide seams.
-            float ci = borderInset;
-            Spawn(topLeftCorner,     leftEdgeX  + ci, topEdgeY    - ci, frameZ, cornerWidth * partScale, cornerHeight * partScale, cornerSortingOrder);
-            Spawn(topRightCorner,    rightEdgeX - ci, topEdgeY    - ci, frameZ, cornerWidth * partScale, cornerHeight * partScale, cornerSortingOrder);
-            Spawn(bottomLeftCorner,  leftEdgeX  + ci, bottomEdgeY + ci, frameZ, cornerWidth * partScale, cornerHeight * partScale, cornerSortingOrder);
-            Spawn(bottomRightCorner, rightEdgeX - ci, bottomEdgeY + ci, frameZ, cornerWidth * partScale, cornerHeight * partScale, cornerSortingOrder);
-
-            BuildIndicators(cols, leftX, topEdgeY, bottomEdgeY);
-        }
-
-        void BuildSideBorder(float x, int rows, Sprite first, Sprite middle, Sprite last)
-        {
-            float gridTop    =  cellHeight * 0.5f;
-            float gridBottom = -(rows - 1) * cellHeight - cellHeight * 0.5f;
-
-            float w = sideWidth * partScale; // thickness gets the outline boost
-
-            // First cap (top) and last cap (bottom).
-            Spawn(first, x, gridTop - sideFirstHeight * 0.5f,    frameZ, w, sideFirstHeight, frameSortingOrder);
-            Spawn(last,  x, gridBottom + sideLastHeight * 0.5f,  frameZ, w, sideLastHeight,  frameSortingOrder);
-
-            // Middle tiles fill the remaining span.
-            float middleTop    = gridTop - sideFirstHeight;
-            float middleBottom = gridBottom + sideLastHeight;
-            float span = middleTop - middleBottom;
-            if (span > 0.001f && sideMiddleHeight > 0.001f)
-            {
-                int count = Mathf.Max(1, Mathf.CeilToInt(span / sideMiddleHeight));
-                float h = span / count; // distribute evenly so they tile seamlessly
-                for (int i = 0; i < count; i++)
-                    Spawn(middle, x, middleTop - h * (i + 0.5f), frameZ, w, h, frameSortingOrder);
-            }
-        }
-
-        void BuildIndicators(int cols, float leftX, float topEdgeY, float bottomEdgeY)
-        {
+            var level   = LevelLoader.Instance != null ? LevelLoader.Instance.CurrentLevel : null;
             var columns = GameManager.Instance != null ? GameManager.Instance.Columns : null;
+            if (level == null) return;
 
-            float statusY = topEdgeY + topHeight * 0.5f + indicatorAboveGap + indicatorHeight * 0.5f;
-            float outY    = bottomEdgeY - bottomHeight * 0.5f - outBelowGap - indicatorHeight * 0.5f;
+            // --- Board's actual Board-local vertical (Z) extent + center, read at build time so the
+            // icons track the board no matter the grid size / which MB sprite the level uses. ---
+            var boardSR = GetComponent<SpriteRenderer>();
+            float spriteH = (boardSR != null && boardSR.sprite != null) ? boardSR.sprite.bounds.size.y : 1f;
+            float boardExtentZ = Mathf.Abs(transform.localScale.y) * spriteH;       // height mapped to Board-local Z (board tilted ≈90°)
+            if (boardExtentZ < 1e-3f) boardExtentZ = rows * cellWidth;              // fallback if sprite not ready
+            float boardCenterZ = transform.localPosition.z;
+            float topEdgeZ = boardCenterZ + boardExtentZ * 0.5f;
+            float botEdgeZ = boardCenterZ - boardExtentZ * 0.5f;
+
+            float statusZ = topEdgeZ + boardExtentZ * statusEdgeGapFraction;
+            float outZ    = botEdgeZ - boardExtentZ * outEdgeGapFraction;
+            float lift    = boardExtentZ * liftFraction;
+            float iconScale = boardExtentZ * indicatorSizeFraction;
+            float tickS     = boardExtentZ * tickSizeFraction;
+
+            float leftX = -((cols - 1) * cellWidth) * 0.5f;
+            Quaternion rot = Quaternion.Euler(indicatorRotation);
 
             for (int c = 0; c < cols; c++)
             {
                 float x = leftX + c * cellWidth;
 
-                // Base indicator — starts as not-done, swaps to done when the column locks.
-                var baseGO = Spawn(notDoneSprite, x, statusY, indicatorZ, indicatorWidth, indicatorHeight, indicatorSortingOrder);
+                // Top status: not-done base (+ optional tick), driven by ColumnIndicator (swaps to done + tick on lock).
+                if (level.notDoneSprite != null)
+                {
+                    var sPos = new Vector3(x, lift, statusZ);
+                    var baseGO = Spawn(level.notDoneSprite, sPos, rot, new Vector3(iconScale, iconScale, 1f), indicatorSortingOrder);
 
-                // Tick overlay — covers the arrow, smaller than the base so the outline shows.
-                var tickGO = Spawn(tickSprite, x, statusY, indicatorZ - 0.01f, tickWidth, tickHeight, indicatorSortingOrder + 1);
-                tickGO.SetActive(false);
+                    GameObject tickGO = null;
+                    if (level.tickSprite != null)
+                    {
+                        tickGO = Spawn(level.tickSprite, sPos, rot, new Vector3(tickS, tickS, 1f), indicatorSortingOrder + 1);
+                        tickGO.SetActive(false);
+                    }
 
-                var ind = baseGO.AddComponent<ColumnIndicator>();
-                Column col = (columns != null && c < columns.Count) ? columns[c] : null;
-                ind.Setup(col, baseGO.GetComponent<SpriteRenderer>(), notDoneSprite, doneSprite, tickGO);
+                    var ind = baseGO.AddComponent<ColumnIndicator>();
+                    Column col = (columns != null && c < columns.Count) ? columns[c] : null;
+                    ind.Setup(col, baseGO.GetComponent<SpriteRenderer>(), level.notDoneSprite, level.doneSprite, tickGO);
+                }
 
-                // Out arrows below.
-                Spawn(outSprite, x, outY, indicatorZ, indicatorWidth, indicatorHeight, indicatorSortingOrder);
+                // Bottom out arrow.
+                if (level.outSprite != null)
+                {
+                    var oPos = new Vector3(x, lift, outZ);
+                    Spawn(level.outSprite, oPos, rot, new Vector3(iconScale, iconScale, 1f), indicatorSortingOrder);
+                }
             }
         }
 
-        GameObject Spawn(Sprite sprite, float x, float y, float z, float w, float h, int order)
+        GameObject Spawn(Sprite sprite, Vector3 localPos, Quaternion localRot, Vector3 localScale, int order)
         {
-            var go = new GameObject("BoardPart");
-            go.transform.SetParent(transform, false);
-            go.transform.localPosition = new Vector3(x, y, z);
+            var go = new GameObject("BoardIndicator");
+            go.transform.SetParent(indicatorParent != null ? indicatorParent : transform, false);
+            go.transform.localPosition = localPos;
+            go.transform.localRotation = localRot;
+            go.transform.localScale = localScale;
 
             var sr = go.AddComponent<SpriteRenderer>();
             sr.sprite = sprite;
             sr.sortingOrder = order;
-
-            if (sprite != null)
-            {
-                Vector3 size = sprite.bounds.size;
-                if (size.x > 0f && size.y > 0f)
-                    go.transform.localScale = new Vector3(w / size.x, h / size.y, 1f);
-            }
 
             spawned.Add(go);
             return go;

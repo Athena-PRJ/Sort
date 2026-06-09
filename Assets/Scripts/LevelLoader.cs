@@ -27,6 +27,18 @@ namespace Sort
                  "here. Add an entry to expose a new prefab to designers; no code changes needed.")]
         [SerializeField] private PrefabRegistry registry;
 
+        [Tooltip("Prefab spawned for each LevelData.ties entry. Must have a TieVisual component on the " +
+                 "root with two Quad children (one for 'tie up' half, one for 'tie down' half) and " +
+                 "matching materials. Leave null to disable the tie visual entirely — ties still bind " +
+                 "movement (Phase B) but won't render.")]
+        [SerializeField] private GameObject tieVisualPrefab;
+
+        [Tooltip("Prefab spawned for each LevelData.frozenColumns entry. Must have a FrozenOverlay " +
+                 "component on the root with a TMP_Text child for the remaining-count display and " +
+                 "an optional MeshRenderer Quad for the placeholder fade tint. Leave null to skip the " +
+                 "visual — the gameplay state (frozen / interaction blocks) still applies.")]
+        [SerializeField] private GameObject frozenOverlayPrefab;
+
         [Header("Scene refs")]
         [SerializeField] private Board board;
         [SerializeField] private PlayerHand playerHand;
@@ -52,16 +64,12 @@ namespace Sort
                  "formula. Use this to fine-tune specific grids (e.g. 'I want 4×4 at 0.8 instead of 0.75').")]
         [SerializeField] private GridScaleOverride[] scaleOverrides = new GridScaleOverride[0];
 
-        [Tooltip("If true, MainBoard.localScale.x/y are additionally multiplied by (cols / standardGrid.x, " +
-                 "rows / standardGrid.y) so the frame wraps the actual grid extent tightly per level. " +
-                 "Without this, MainBoard inherits only Board's area-preserving uniform F, making it " +
-                 "look oversized for smaller grids (e.g. a 2x2 wearing a 3x3-sized frame).")]
-        [SerializeField] private bool autoFitMainBoardToGrid = true;
-
         [Header("MainBoard")]
-        [Tooltip("Fallback FullBoard sprite used when a LevelData has no mainBoardSprite assigned. " +
-                 "Drag one of Assets/Texture/FullBoard/MB_*.png here.")]
-        [SerializeField] private Sprite defaultMainBoardSprite;
+        [Tooltip("How much bigger the MainBoard image is than the raw grid extent. 1.0 = exactly the grid; " +
+                 "1.2 = 20% margin to account for the frame border drawn into the board art. The board is " +
+                 "deterministically scaled to (cols×ColumnSpacing) × (rows×PieceSpacing) × this, so it fits " +
+                 "ANY grid size by construction (no per-grid heuristic needed).")]
+        [SerializeField] private float mainBoardGridPadding = 1.2f;
 
         [Tooltip("Optional reference to the BoardFrame component on the MainBoard child GameObject. " +
                  "If left null, LevelLoader auto-finds one via GetComponentInChildren on the Board.")]
@@ -75,10 +83,6 @@ namespace Sort
         [SerializeField] private bool autoAlignBoardFrameToColumns = true;
 
         [Header("Background")]
-        [Tooltip("Fallback background sprite used when a LevelData has no backgroundSprite assigned. " +
-                 "Drag one of Assets/Texture/Background/BG_*.png here.")]
-        [SerializeField] private Sprite defaultBackgroundSprite;
-
         [Tooltip("Optional reference to the BackgroundFrame component on the Background GameObject (child of Canvas). " +
                  "If left null, LevelLoader auto-finds one via FindAnyObjectByType at runtime.")]
         [SerializeField] private BackgroundFrame backgroundFrame;
@@ -88,12 +92,6 @@ namespace Sort
 
         /// <summary>The head of the level chain (typically Level1). SkillProgress walks from this.</summary>
         public LevelData DefaultLevel => defaultLevel;
-
-        /// <summary>Fallback sprite when LevelData has none. Used by BoardFrame.Apply().</summary>
-        public Sprite DefaultMainBoardSprite => defaultMainBoardSprite;
-
-        /// <summary>Fallback background when LevelData has none. Used by BackgroundFrame.Apply().</summary>
-        public Sprite DefaultBackgroundSprite => defaultBackgroundSprite;
 
         // Captured authored scale of Board, HandAnchor, and MainBoard so we can apply F + per-prefab
         // adjusts as multipliers without destroying the designer's manual scene settings. Captured once.
@@ -161,13 +159,24 @@ namespace Sort
             {
                 var columnGO = Instantiate(columnPrefab, board.transform);
                 var col = columnGO.GetComponent<Column>();
-                if (col != null) spawnedColumns.Add(col);
+                if (col != null)
+                {
+                    spawnedColumns.Add(col);
+                    // Only Stack Sort: this column will accept only one color's pieces (enforced in
+                    // PlayerHand). Set before GameManager/MainBoardBuilder run so the indicator tints.
+                    if (colConfig.onlyStackSort)
+                        col.SetOnlyStackSort(colConfig.onlyStackColor);
+                }
                 foreach (var pieceCfg in colConfig.pieces)
                 {
                     var pieceGO = Instantiate(piecePrefab, columnGO.transform);
                     var piece = pieceGO.GetComponent<Piece>();
                     if (piece != null)
                     {
+                        // SetPalette FIRST so SetConfig's ApplyVisualState call sees the palette
+                        // and samples from it on the very first frame (no flash of tinted texture).
+                        // Palette comes from the registry entry, not LevelData — single source per prefab.
+                        piece.SetPalette(ResolvePiecePalette(data, piecePrefab));
                         piece.SetConfig(pieceCfg);
                         ApplyRegistryPieceScale(piece, piecePrefab);
                     }
@@ -180,15 +189,27 @@ namespace Sort
 
             board.Layout();
 
+            // Wire up ties — designer-authored pairs of pieces in adjacent columns that move together.
+            // Spawn the visual prefab between each tied pair and cross-link the Piece.TiedPartner refs.
+            // Click-time shift logic (Phase B) walks those refs to find which columns move as a chain.
+            SpawnTies(data, spawnedColumns);
+
+            // Initialize frozen columns (Break Wall Stack). Calls Column.Freeze on each configured
+            // column (disables colliders → blocks interactions) and spawns the FrozenOverlay visual.
+            InitializeFrozenColumns(data, spawnedColumns);
+
             // Spawn the held piece under the hand anchor.
             var heldGO = Instantiate(piecePrefab, playerHand.HandAnchor);
             var held = heldGO.GetComponent<Piece>();
             if (held != null)
             {
+                held.SetPalette(ResolvePiecePalette(data, piecePrefab));
                 held.SetConfig(data.startingHeldPiece);
                 ApplyRegistryPieceScale(held, piecePrefab);
             }
             playerHand.SetHeldPiece(held);
+            // Themed placemat under the held piece (LevelData.placeSprite). Null = keep prefab default.
+            playerHand.SetPlaceSprite(data.placeSprite);
 
             if (autoFit) ApplyAutoFit(data, piecePrefab);
 
@@ -313,6 +334,168 @@ namespace Sort
         }
 
         /// <summary>
+        /// Resolves each <see cref="LevelData.TieConfig"/> into a runtime tie: finds the two piece
+        /// instances at (columnA, row) and (columnA+1, row), cross-links their <see cref="Piece.TiedPartner"/>
+        /// refs, and spawns a TieVisual prefab between them. No-op when there are no ties OR when
+        /// tieVisualPrefab is unassigned (the bindings still happen — only the visual is skipped).
+        /// </summary>
+        void SpawnTies(LevelData data, System.Collections.Generic.List<Column> cols)
+        {
+            if (data.ties == null || data.ties.Length == 0) return;
+
+            for (int i = 0; i < data.ties.Length; i++)
+            {
+                var t = data.ties[i];
+                if (t == null) continue;
+                // Validation already runs in LevelData.Validate (logged via OnValidate); guard at
+                // runtime too so a stale/invalid asset doesn't crash the level build.
+                if (t.columnA < 0 || t.columnA >= cols.Count - 1)
+                {
+                    Debug.LogWarning($"[LevelLoader] Tie [{i}] columnA={t.columnA} out of range for level '{data.name}' — skipped.", this);
+                    continue;
+                }
+                var colA = cols[t.columnA];
+                var colB = cols[t.columnA + 1];
+                if (colA == null || colB == null) continue;
+
+                var pieceA = GetPieceAtRow(colA, t.row);
+                var pieceB = GetPieceAtRow(colB, t.row);
+                if (pieceA == null || pieceB == null)
+                {
+                    Debug.LogWarning($"[LevelLoader] Tie [{i}] row={t.row} resolves to a missing piece in level '{data.name}' — skipped.", this);
+                    continue;
+                }
+
+                // Cross-link tied partners FIRST so Phase B logic can see the binding even if the
+                // visual prefab is missing.
+                pieceA.SetTiedPartner(pieceB);
+                pieceB.SetTiedPartner(pieceA);
+
+                if (tieVisualPrefab != null)
+                {
+                    var tieGO = Instantiate(tieVisualPrefab, board.transform);
+                    var tieVis = tieGO.GetComponent<TieVisual>();
+                    if (tieVis != null)
+                    {
+                        tieVis.Bind(pieceA, pieceB);
+                    }
+                    else
+                    {
+                        Debug.LogWarning($"[LevelLoader] tieVisualPrefab is missing a TieVisual component — tie [{i}] won't render.", this);
+                        Destroy(tieGO);
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Freezes the level's special columns and spawns their FrozenOverlay visuals. Two sources:
+        ///   • Break Wall Stack — <see cref="LevelData.frozenColumns"/> (any locked column counts).
+        ///   • Lock Color Stack — per-column flag on <see cref="ColumnConfig.lockColorStack"/> (only
+        ///     columns completed in the required color count). Authored on the main Columns list so the
+        ///     designer ticks a column directly to make it color-gated.
+        /// GameManager owns the per-lock countdown + auto-unfreeze afterward — this only builds state.
+        /// </summary>
+        void InitializeFrozenColumns(LevelData data, System.Collections.Generic.List<Column> cols)
+        {
+            // --- Break Wall Stack (frozenColumns list, referenced by column index) ---
+            if (data.frozenColumns != null)
+            {
+                for (int i = 0; i < data.frozenColumns.Length; i++)
+                {
+                    var cfg = data.frozenColumns[i];
+                    if (cfg == null) continue;
+                    if (cfg.columnIndex < 0 || cfg.columnIndex >= cols.Count)
+                    {
+                        Debug.LogWarning($"[LevelLoader] FrozenColumn [{i}] columnIndex={cfg.columnIndex} out of " +
+                                         $"range for level '{data.name}' (has {cols.Count} cols) — skipped.", this);
+                        continue;
+                    }
+                    var col = cols[cfg.columnIndex];
+                    if (col == null) continue;
+
+                    col.Freeze(cfg.unlockThreshold);
+                    SpawnFrozenOverlay(col, cfg.unlockThreshold);
+                }
+            }
+
+            // --- Lock Color Stack (per-column tick on ColumnConfig; index aligns with cols) ---
+            if (data.columns != null)
+            {
+                int n = Mathf.Min(data.columns.Length, cols.Count);
+                for (int i = 0; i < n; i++)
+                {
+                    var cc = data.columns[i];
+                    if (cc == null || !cc.lockColorStack) continue;
+                    var col = cols[i];
+                    if (col == null) continue;
+
+                    col.Freeze(cc.lockColorUnlockThreshold, true, cc.requiredColor);
+                    SpawnFrozenOverlay(col, cc.lockColorUnlockThreshold);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Instantiates the FrozenOverlay prefab parented to <paramref name="col"/>, positions/rotates it
+        /// over the column, and shows the initial remaining count. No-op if no prefab assigned.
+        /// </summary>
+        FrozenOverlay SpawnFrozenOverlay(Column col, int threshold)
+        {
+            if (frozenOverlayPrefab == null) return null;
+            var overlayGO = Instantiate(frozenOverlayPrefab, col.transform);
+            var overlay = overlayGO.GetComponent<FrozenOverlay>();
+            if (overlay == null)
+            {
+                Debug.LogWarning($"[LevelLoader] frozenOverlayPrefab is missing a FrozenOverlay component " +
+                                 $"— overlay for '{col.name}' won't update its remaining count.", this);
+                return null;
+            }
+            // AttachToColumn handles position (world centroid of pieces) AND rotation (lies flat over
+            // the column). Robust to board / column rotation — no manual local-space math here.
+            overlay.AttachToColumn(col);
+            overlay.SetRemaining(threshold);
+            return overlay;
+        }
+
+        /// <summary>Returns the Piece child of <paramref name="col"/> at <paramref name="row"/> (0-based from top), or null.</summary>
+        static Piece GetPieceAtRow(Column col, int row)
+        {
+            if (col == null || row < 0) return null;
+            int pieceCount = 0;
+            for (int i = 0; i < col.transform.childCount; i++)
+            {
+                var p = col.transform.GetChild(i).GetComponent<Piece>();
+                if (p == null) continue;
+                if (pieceCount == row) return p;
+                pieceCount++;
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// Resolves the ColorPalette for the current level by reading the registry entry for
+        /// <paramref name="piecePrefab"/> and indexing into it with <c>data.paletteStyle</c>:
+        ///   - PaletteStyle.Pastel → entry.palettePastel
+        ///   - PaletteStyle.Plain  → entry.palettePlain
+        /// Returns null if there's no registry, no entry, or the selected slot is empty —
+        /// Piece.SetPalette(null) then reverts to the legacy tint-the-default-material path.
+        /// Designer configures both palettes ONCE per prefab in the registry, then per-level
+        /// just toggles the enum to pick a style.
+        /// </summary>
+        ColorPalette ResolvePiecePalette(LevelData data, GameObject piecePrefab)
+        {
+            if (data == null || registry == null) return null;
+            if (!registry.TryGetEntry(piecePrefab, out var entry)) return null;
+            return data.paletteStyle switch
+            {
+                PaletteStyle.Pastel => entry.palettePastel,
+                PaletteStyle.Plain  => entry.palettePlain,
+                _                   => null
+            };
+        }
+
+        /// <summary>
         /// Pushes the registry entry's <see cref="PieceGenEntry.pieceScale"/> onto the freshly-spawned
         /// piece as its baseline. No-op when the registry has no entry for this prefab, or when the
         /// entry's pieceScale is zero (designer's signal to "use the prefab's authored localScale instead").
@@ -396,32 +579,45 @@ namespace Sort
             // Board.transform scale = authored × F. All children inherit (columns, pieces, MainBoard).
             board.transform.localScale = authoredBoardScale * scale;
 
-            // MainBoard gets an EXTRA per-prefab multiplier on top of its authored scale.
-            // Its world scale = Board.scale × MainBoard.localScale = (authored×F) × (authoredMB × adjust).
-            // When autoFitMainBoardToGrid is on, also multiply local x/y by grid-vs-standard ratio so
-            // the frame shrinks for smaller grids (e.g. 2x2 → ~67% the width/height of 3x3 standard).
-            // This compensates for F growing as grids shrink, which would otherwise oversize MainBoard.
+            // MainBoard image: deterministically size it to WRAP the grid. Work in Board-LOCAL units so
+            // the uniform F cancels out (boardFrame is a child of Board): the board sprite's local size =
+            // (cols×ColumnSpacing) × (rows×PieceSpacing) × mainBoardGridPadding, divided by the sprite's
+            // native bounds. Fits ANY grid by construction — no per-grid heuristic. (z keeps authored depth.)
             if (boardFrame == null && board != null)
                 boardFrame = board.GetComponentInChildren<BoardFrame>(true);
             if (boardFrame != null)
             {
-                Vector3 mbScale = authoredMainBoardScale * mainBoardAdjust;
-                if (autoFitMainBoardToGrid)
+                boardFrame.Apply(); // assign the sprite first so its native bounds are valid below
+                var sr = boardFrame.GetComponent<SpriteRenderer>();
+                float pieceSpacing = FirstColumnPieceSpacing();
+                Vector3 mbScale = authoredMainBoardScale; // keeps authored z (depth)
+                if (sr != null && sr.sprite != null && pieceSpacing > 0f)
                 {
-                    float stdCols = Mathf.Max(1, standardGrid.x);
-                    float stdRows = Mathf.Max(1, standardGrid.y);
-                    mbScale.x *= cols    / stdCols;
-                    mbScale.y *= rowsMax / stdRows;
-                    // z stays the depth multiplier — sprites are flat so z doesn't affect visual size.
+                    Vector3 spriteSize = sr.sprite.bounds.size;
+                    float gridLocalW = cols    * board.ColumnSpacing;
+                    float gridLocalH = rowsMax * pieceSpacing;
+                    if (spriteSize.x > 1e-4f) mbScale.x = (gridLocalW * mainBoardGridPadding) / spriteSize.x * mainBoardAdjust;
+                    if (spriteSize.y > 1e-4f) mbScale.y = (gridLocalH * mainBoardGridPadding) / spriteSize.y * mainBoardAdjust;
+                }
+                else
+                {
+                    mbScale.x *= mainBoardAdjust;
+                    mbScale.y *= mainBoardAdjust;
                 }
                 boardFrame.transform.localScale = mbScale;
-                boardFrame.Apply();
             }
 
             // HandAnchor is NOT a child of Board, so it gets F applied directly,
             // PLUS the per-prefab adjust as an extra multiplier.
             if (playerHand != null && playerHand.HandAnchor != null)
                 playerHand.HandAnchor.localScale = authoredHandScale * scale * handAnchorAdjust;
+        }
+
+        /// <summary>PieceSpacing of the first spawned Column (Board-local units), or 0 if none found yet.</summary>
+        float FirstColumnPieceSpacing()
+        {
+            var col = board != null ? board.GetComponentInChildren<Column>(true) : null;
+            return col != null ? col.PieceSpacing : 0f;
         }
 
         /// <summary>

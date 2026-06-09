@@ -14,15 +14,19 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Sort.PrefabRegistry
   entries:
   - piecePrefab: {fileID: 8595755308906869233, guid: dfdf8c852b0e5104184c4e0f60f2ebb9, type: 3}
-    pieceScale: {x: 2, y: 1.5, z: 2}
-    columnSpacing: 1.55
-    pieceSpacing: 2
+    palettePastel: {fileID: 11400000, guid: 68f5d84fd6840654fb4f727da2e0f807, type: 2}
+    palettePlain: {fileID: 11400000, guid: e992b7091ce0b2e4294e2f9a1d0e9c5a, type: 2}
+    pieceScale: {x: 2, y: 4, z: 2}
+    columnSpacing: 1.56
+    pieceSpacing: 2.08
     mainBoardScaleAdjust: 1
-    handAnchorScaleAdjust: 0
+    handAnchorScaleAdjust: 1
     mainBoardExtraOffset: {x: 0, y: 0, z: 0}
     heldPieceExtraOffset: {x: 0, y: 0, z: 0}
   - piecePrefab: {fileID: 9008629956183570367, guid: 2384a7bd7eeb05348a1d172b63e15295, type: 3}
-    pieceScale: {x: 2, y: 1.5, z: 2}
+    palettePastel: {fileID: 11400000, guid: 7a828c2cb9ae02a43b9b69dc60ddb24d, type: 2}
+    palettePlain: {fileID: 11400000, guid: 7f2b1b77baee87c42aaf9a555af6a7b4, type: 2}
+    pieceScale: {x: 2, y: 3, z: 2}
     columnSpacing: 1.5
     pieceSpacing: 2
     mainBoardScaleAdjust: 1
@@ -30,9 +34,11 @@ MonoBehaviour:
     mainBoardExtraOffset: {x: 0, y: 0, z: 0}
     heldPieceExtraOffset: {x: 0, y: 0, z: 0}
   - piecePrefab: {fileID: 2697371083170223703, guid: 12b960f967f10bf4dad210ed95c13691, type: 3}
+    palettePastel: {fileID: 11400000, guid: f1e3b013968041b4fa408556f6b96443, type: 2}
+    palettePlain: {fileID: 11400000, guid: 0271ba242138b784e8dd6593b8f9d77e, type: 2}
     pieceScale: {x: 2, y: 1.5, z: 2}
-    columnSpacing: 1.5
-    pieceSpacing: 2
+    columnSpacing: 1.55
+    pieceSpacing: 2.06
     mainBoardScaleAdjust: 1
     handAnchorScaleAdjust: 0
     mainBoardExtraOffset: {x: 0, y: 0, z: 0}

@@ -12,7 +12,8 @@ namespace Sort
     [RequireComponent(typeof(SpriteRenderer))]
     public class BoardFrame : MonoBehaviour
     {
-        [Tooltip("Shown when LevelData has no mainBoardSprite assigned AND LevelLoader has no defaultMainBoardSprite.")]
+        [Tooltip("Shown when the level's LevelData has no mainBoardSprite assigned. Each level should set " +
+                 "its own mainBoardSprite; this is just a last-resort placeholder.")]
         [SerializeField] private Sprite fallbackSprite;
 
         [Tooltip("Optional sorting order so the frame draws behind pieces.")]
@@ -37,7 +38,6 @@ namespace Sort
 
             var loader = LevelLoader.Instance;
             Sprite chosen = loader != null && loader.CurrentLevel != null ? loader.CurrentLevel.mainBoardSprite : null;
-            if (chosen == null && loader != null) chosen = loader.DefaultMainBoardSprite;
             if (chosen == null) chosen = fallbackSprite;
             sr.sprite = chosen;
 

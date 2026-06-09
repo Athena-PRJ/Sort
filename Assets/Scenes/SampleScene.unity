@@ -215,7 +215,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!224 &86849352
 RectTransform:
   m_ObjectHideFlags: 0
@@ -337,51 +337,18 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 122702328}
-  m_Enabled: 0
+  m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 7e2fa3aa1c8f30f419af83141a6df166, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Sort.MainBoardBuilder
-  topLeftCorner: {fileID: 21300000, guid: d8f9ce00436fd5f43b4650b3c4921aa5, type: 3}
-  topRightCorner: {fileID: 21300000, guid: 6bca6c4ab79eaf94dbd7c8c5e6dd53ff, type: 3}
-  bottomLeftCorner: {fileID: 21300000, guid: 516c046bd49126d48bb3c08459083573, type: 3}
-  bottomRightCorner: {fileID: 21300000, guid: cd73bd2d39ce5e64d99501a69cc42104, type: 3}
-  topEdge: {fileID: 21300000, guid: 2ff10c3a5bcf3474f864ba5a1143e64a, type: 3}
-  bottomEdge: {fileID: 21300000, guid: 73f77797f0fec23498f6d5767b63897e, type: 3}
-  leftFirst: {fileID: 21300000, guid: 8a987cd898444a84f9b9d0d6e94013a3, type: 3}
-  leftMiddle: {fileID: 21300000, guid: 3459241054b9c3d428b3d95ecb0ad7de, type: 3}
-  leftLast: {fileID: 21300000, guid: ef85e9820645d02499261af576c11f3d, type: 3}
-  rightFirst: {fileID: 21300000, guid: 9a05b8e8ee9e5fb42a8242fdbb9ebe12, type: 3}
-  rightMiddle: {fileID: 21300000, guid: 7b06bdc759eb1074f9d729158e681bd1, type: 3}
-  rightLast: {fileID: 21300000, guid: d319dd572152b2e46827ac2fadd19229, type: 3}
-  center: {fileID: 21300000, guid: 275c1205d15aec54088a30b2d10c4564, type: 3}
-  notDoneSprite: {fileID: 21300000, guid: 8e0dadcb25e51024782c168f8a97c7b1, type: 3}
-  doneSprite: {fileID: 21300000, guid: 22661fdbe87d4724b9ac357a21d8ac44, type: 3}
-  tickSprite: {fileID: 21300000, guid: 66b309e0f6ba75445a74a6c7c3e5b735, type: 3}
-  outSprite: {fileID: 21300000, guid: 6bc6ddce2717cf74192a23384d39f50c, type: 3}
-  autoSyncCellSize: 1
-  cellWidth: 1.4
-  cellHeight: 2.05
-  partScale: 1
-  borderInset: 0.5
-  topHeight: 0.7
-  bottomHeight: 0.7
-  sideWidth: 0.7
-  sideFirstHeight: 0.7
-  sideMiddleHeight: 0.7
-  sideLastHeight: 0.7
-  cornerWidth: 0.7
-  cornerHeight: 0.7
-  cornerSortingOrder: -8
-  indicatorWidth: 1
-  indicatorHeight: 0.45
-  indicatorAboveGap: -0.65
-  outBelowGap: -0.45
-  tickWidth: 0.5
-  tickHeight: 0.3
-  frameZ: 0.3
-  indicatorZ: -0.1
-  frameSortingOrder: -10
+  indicatorRotation: {x: 85, y: 0, z: 0}
+  indicatorSizeFraction: 0.05
+  tickSizeFraction: 0.03
+  statusEdgeGapFraction: 0.015
+  outEdgeGapFraction: 0.05
+  liftFraction: 0.1
+  columnSpacingOverride: 1.5
   indicatorSortingOrder: 10
 --- !u!114 &122702331
 MonoBehaviour:
@@ -1666,10 +1633,17 @@ MonoBehaviour:
   heldPiece: {fileID: 0}
   handSlotDecoration: {fileID: 0}
   useAnimations: 1
-  heldToTopDuration: 0.45
+  heldToTopDuration: 1
   shiftAndPopDuration: 0.4
-  celebrationDelay: 0.35
+  dropArcHeight: 1.5
+  popArcHeight: 0.8
+  landBounceDuration: 1
+  landBounceOvershoot: 1
+  celebrationDelay: 1
   maxQueuedClicks: 3
+  celebrationDuration: 0.7
+  celebrationHopHeight: 1
+  celebrationRotations: 2
   switchFlightDuration: 0.4
   switchArcHeight: 4
   magnetFlightDuration: 0.45
@@ -1677,9 +1651,14 @@ MonoBehaviour:
   magnetArcHeightSmall: 0.25
   magnetStaggerSeconds: 0.04
   rainbowSinkDuration: 0.25
+  tieBreakFadeDuration: 0.3
   revealHopDuration: 0.5
   revealHopHeight: 0.7
   revealDelay: 0.05
+  shakeOnReject: 1
+  rejectShakeDuration: 0.28
+  rejectShakeAngle: 12
+  rejectShakeOscillations: 3
 --- !u!1 &438804056
 GameObject:
   m_ObjectHideFlags: 0
@@ -1827,6 +1806,7 @@ GameObject:
   m_Component:
   - component: {fileID: 446520691}
   - component: {fileID: 446520692}
+  - component: {fileID: 446520693}
   m_Layer: 0
   m_Name: Board
   m_TagString: Untagged
@@ -1863,6 +1843,24 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Sort.Board
   flattenYZ: 1
+--- !u!114 &446520693
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 446520690}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c989e1775bcef8c479b48229ec237b90, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Sort.BoardIdleAnimator
+  idleEnabled: 1
+  idleThreshold: 8
+  repeatInterval: 6
+  swayAngle: 10
+  swayDuration: 0.8
+  perColumnDelay: 0.2
 --- !u!1 &447106573
 GameObject:
   m_ObjectHideFlags: 0
@@ -2058,7 +2056,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 21300000, guid: e1c504823416be54d9081e99e02f8e0e, type: 3}
+  m_Sprite: {fileID: 3286163911610860551, guid: 33e1b0482111be14b82b4658a85a8052, type: 3}
   m_Type: 0
   m_PreserveAspect: 1
   m_FillCenter: 1
@@ -2086,8 +2084,8 @@ GameObject:
   m_Component:
   - component: {fileID: 510532457}
   - component: {fileID: 510532459}
-  - component: {fileID: 510532458}
   - component: {fileID: 510532460}
+  - component: {fileID: 510532461}
   m_Layer: 0
   m_Name: LevelBadges
   m_TagString: Untagged
@@ -2115,36 +2113,6 @@ RectTransform:
   m_AnchoredPosition: {x: -167, y: 1226}
   m_SizeDelta: {x: 613.9349, y: 237.649}
   m_Pivot: {x: 0.5, y: 0.5}
---- !u!114 &510532458
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 510532456}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: fe87c0e1cc204ed48ad3b37840f39efc, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Image
-  m_Material: {fileID: 0}
-  m_Color: {r: 1, g: 1, b: 1, a: 1}
-  m_RaycastTarget: 0
-  m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
-  m_Maskable: 1
-  m_OnCullStateChanged:
-    m_PersistentCalls:
-      m_Calls: []
-  m_Sprite: {fileID: 21300000, guid: 952df075f0be151458a336ec2a2b9e31, type: 3}
-  m_Type: 0
-  m_PreserveAspect: 0
-  m_FillCenter: 1
-  m_FillMethod: 4
-  m_FillAmount: 1
-  m_FillClockwise: 1
-  m_FillOrigin: 0
-  m_UseSpriteMesh: 0
-  m_PixelsPerUnitMultiplier: 1
 --- !u!222 &510532459
 CanvasRenderer:
   m_ObjectHideFlags: 0
@@ -2167,6 +2135,28 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Sort.LevelNumberDisplay
   levelText: {fileID: 1595917528}
   format: '{0} {1}'
+--- !u!114 &510532461
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 510532456}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ef8b96895a0ec4ba685178a052544251, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Unity.VectorGraphics::Unity.VectorGraphics.SVGImage
+  m_Material: {fileID: 0}
+  m_Color: {r: 1, g: 1, b: 1, a: 1}
+  m_RaycastTarget: 1
+  m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
+  m_Maskable: 1
+  m_OnCullStateChanged:
+    m_PersistentCalls:
+      m_Calls: []
+  m_Sprite: {fileID: 3286163911610860551, guid: 6e59d73b056e56c458149e5e9eef0d71, type: 3}
+  m_PreserveAspect: 0
 --- !u!1 &537235295
 GameObject:
   m_ObjectHideFlags: 0
@@ -2314,7 +2304,7 @@ GameObject:
   m_Component:
   - component: {fileID: 554564891}
   - component: {fileID: 554564893}
-  - component: {fileID: 554564892}
+  - component: {fileID: 554564894}
   m_Layer: 0
   m_Name: SwitchPic
   m_TagString: Untagged
@@ -2342,36 +2332,6 @@ RectTransform:
   m_AnchoredPosition: {x: 0, y: 2.3}
   m_SizeDelta: {x: 145, y: 145}
   m_Pivot: {x: 0.5, y: 0.5}
---- !u!114 &554564892
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 554564890}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: fe87c0e1cc204ed48ad3b37840f39efc, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Image
-  m_Material: {fileID: 0}
-  m_Color: {r: 1, g: 1, b: 1, a: 1}
-  m_RaycastTarget: 0
-  m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
-  m_Maskable: 1
-  m_OnCullStateChanged:
-    m_PersistentCalls:
-      m_Calls: []
-  m_Sprite: {fileID: 21300000, guid: cfda1056de9d4fc4f9767054b158f71b, type: 3}
-  m_Type: 0
-  m_PreserveAspect: 1
-  m_FillCenter: 1
-  m_FillMethod: 4
-  m_FillAmount: 1
-  m_FillClockwise: 1
-  m_FillOrigin: 0
-  m_UseSpriteMesh: 0
-  m_PixelsPerUnitMultiplier: 1
 --- !u!222 &554564893
 CanvasRenderer:
   m_ObjectHideFlags: 0
@@ -2380,6 +2340,28 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 554564890}
   m_CullTransparentMesh: 1
+--- !u!114 &554564894
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 554564890}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ef8b96895a0ec4ba685178a052544251, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Unity.VectorGraphics::Unity.VectorGraphics.SVGImage
+  m_Material: {fileID: 0}
+  m_Color: {r: 1, g: 1, b: 1, a: 1}
+  m_RaycastTarget: 1
+  m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
+  m_Maskable: 1
+  m_OnCullStateChanged:
+    m_PersistentCalls:
+      m_Calls: []
+  m_Sprite: {fileID: 3286163911610860551, guid: a71c284d0e07e01439daa728669dd8d6, type: 3}
+  m_PreserveAspect: 0
 --- !u!1 &608240253
 GameObject:
   m_ObjectHideFlags: 0
@@ -2441,7 +2423,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 21300000, guid: a012ef896d7810e46856c25ceced8ebc, type: 3}
+  m_Sprite: {fileID: 3286163911610860551, guid: c911f64d7cd9c4b409ac6f67d070422f, type: 3}
   m_Type: 0
   m_PreserveAspect: 0
   m_FillCenter: 1
@@ -2662,7 +2644,7 @@ GameObject:
   m_Component:
   - component: {fileID: 631430746}
   - component: {fileID: 631430748}
-  - component: {fileID: 631430747}
+  - component: {fileID: 631430749}
   m_Layer: 0
   m_Name: MoveBadges
   m_TagString: Untagged
@@ -2690,36 +2672,6 @@ RectTransform:
   m_AnchoredPosition: {x: 394, y: 1257.5}
   m_SizeDelta: {x: 451.3495, y: 354.6871}
   m_Pivot: {x: 0.5, y: 0.5}
---- !u!114 &631430747
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 631430745}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: fe87c0e1cc204ed48ad3b37840f39efc, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Image
-  m_Material: {fileID: 0}
-  m_Color: {r: 1, g: 1, b: 1, a: 1}
-  m_RaycastTarget: 0
-  m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
-  m_Maskable: 1
-  m_OnCullStateChanged:
-    m_PersistentCalls:
-      m_Calls: []
-  m_Sprite: {fileID: 21300000, guid: 3fcb96bb681677749a81bea582d098ba, type: 3}
-  m_Type: 0
-  m_PreserveAspect: 1
-  m_FillCenter: 1
-  m_FillMethod: 4
-  m_FillAmount: 1
-  m_FillClockwise: 1
-  m_FillOrigin: 0
-  m_UseSpriteMesh: 0
-  m_PixelsPerUnitMultiplier: 1
 --- !u!222 &631430748
 CanvasRenderer:
   m_ObjectHideFlags: 0
@@ -2728,6 +2680,28 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 631430745}
   m_CullTransparentMesh: 1
+--- !u!114 &631430749
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 631430745}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ef8b96895a0ec4ba685178a052544251, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Unity.VectorGraphics::Unity.VectorGraphics.SVGImage
+  m_Material: {fileID: 0}
+  m_Color: {r: 1, g: 1, b: 1, a: 1}
+  m_RaycastTarget: 0
+  m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
+  m_Maskable: 1
+  m_OnCullStateChanged:
+    m_PersistentCalls:
+      m_Calls: []
+  m_Sprite: {fileID: 3286163911610860551, guid: 8c396f6adb057bd40ba88d2511d2c1af, type: 3}
+  m_PreserveAspect: 1
 --- !u!1 &640325914
 GameObject:
   m_ObjectHideFlags: 0
@@ -3353,7 +3327,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 21300000, guid: a012ef896d7810e46856c25ceced8ebc, type: 3}
+  m_Sprite: {fileID: 3286163911610860551, guid: c911f64d7cd9c4b409ac6f67d070422f, type: 3}
   m_Type: 0
   m_PreserveAspect: 0
   m_FillCenter: 1
@@ -3699,7 +3673,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 21300000, guid: 46121dd3b6587574b93295303966e717, type: 3}
+  m_Sprite: {fileID: 3286163911610860551, guid: 5b07964b872576448b7eb00561a68317, type: 3}
   m_Type: 0
   m_PreserveAspect: 0
   m_FillCenter: 1
@@ -3831,7 +3805,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 21300000, guid: 7d2a927007d02df4a824d4710a6f0218, type: 3}
+  m_Sprite: {fileID: 3286163911610860551, guid: a8c56a1886a9eb34bb9d498a0b274424, type: 3}
   m_Type: 0
   m_PreserveAspect: 0
   m_FillCenter: 1
@@ -3859,8 +3833,8 @@ GameObject:
   m_Component:
   - component: {fileID: 824816233}
   - component: {fileID: 824816236}
-  - component: {fileID: 824816235}
   - component: {fileID: 824816234}
+  - component: {fileID: 824816237}
   m_Layer: 0
   m_Name: SwitchButton
   m_TagString: Untagged
@@ -3929,40 +3903,10 @@ MonoBehaviour:
     m_SelectedTrigger: Selected
     m_DisabledTrigger: Disabled
   m_Interactable: 1
-  m_TargetGraphic: {fileID: 824816235}
+  m_TargetGraphic: {fileID: 824816237}
   m_OnClick:
     m_PersistentCalls:
       m_Calls: []
---- !u!114 &824816235
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 824816232}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: fe87c0e1cc204ed48ad3b37840f39efc, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Image
-  m_Material: {fileID: 0}
-  m_Color: {r: 1, g: 1, b: 1, a: 1}
-  m_RaycastTarget: 1
-  m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
-  m_Maskable: 1
-  m_OnCullStateChanged:
-    m_PersistentCalls:
-      m_Calls: []
-  m_Sprite: {fileID: 21300000, guid: a012ef896d7810e46856c25ceced8ebc, type: 3}
-  m_Type: 0
-  m_PreserveAspect: 0
-  m_FillCenter: 1
-  m_FillMethod: 4
-  m_FillAmount: 1
-  m_FillClockwise: 1
-  m_FillOrigin: 0
-  m_UseSpriteMesh: 0
-  m_PixelsPerUnitMultiplier: 1
 --- !u!222 &824816236
 CanvasRenderer:
   m_ObjectHideFlags: 0
@@ -3971,6 +3915,28 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 824816232}
   m_CullTransparentMesh: 1
+--- !u!114 &824816237
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 824816232}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ef8b96895a0ec4ba685178a052544251, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Unity.VectorGraphics::Unity.VectorGraphics.SVGImage
+  m_Material: {fileID: 0}
+  m_Color: {r: 1, g: 1, b: 1, a: 1}
+  m_RaycastTarget: 1
+  m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
+  m_Maskable: 1
+  m_OnCullStateChanged:
+    m_PersistentCalls:
+      m_Calls: []
+  m_Sprite: {fileID: 3286163911610860551, guid: c911f64d7cd9c4b409ac6f67d070422f, type: 3}
+  m_PreserveAspect: 0
 --- !u!1 &832575517
 GameObject:
   m_ObjectHideFlags: 0
@@ -4465,6 +4431,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Sort.LevelLoader
   columnPrefab: {fileID: 2316312685339293923, guid: 7808f46b90d6ce243926c61b8cd6efca, type: 3}
   registry: {fileID: 11400000, guid: 7beab42c70f74f34b8d83bcbd707af0c, type: 2}
+  tieVisualPrefab: {fileID: 7325318360752329963, guid: c8bd1e47ec29f3849883964950c186d0, type: 3}
+  frozenOverlayPrefab: {fileID: 5954333237671131266, guid: 2b97ce6a73b24fc4ab623564f8fc8bfc, type: 3}
   board: {fileID: 446520692}
   playerHand: {fileID: 432863228}
   defaultLevel: {fileID: 11400000, guid: acdd4d63d0dcf7a45939bb52b363e743, type: 2}
@@ -4473,11 +4441,9 @@ MonoBehaviour:
   scaleOverrides:
   - gridSize: {x: 2, y: 2}
     scaleMultiplier: 1.4
-  autoFitMainBoardToGrid: 1
-  defaultMainBoardSprite: {fileID: 21300000, guid: 8e96ba1135710fa49bf8881599e85d0e, type: 3}
+  mainBoardGridPadding: 1.2
   boardFrame: {fileID: 122702331}
   autoAlignBoardFrameToColumns: 1
-  defaultBackgroundSprite: {fileID: 21300000, guid: 4e14f3cb640aca44ea39a0c88b21255f, type: 3}
   backgroundFrame: {fileID: 1598179537}
 --- !u!4 &1197473628
 Transform:
@@ -4958,7 +4924,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 21300000, guid: 7d2a927007d02df4a824d4710a6f0218, type: 3}
+  m_Sprite: {fileID: 3286163911610860551, guid: a8c56a1886a9eb34bb9d498a0b274424, type: 3}
   m_Type: 0
   m_PreserveAspect: 0
   m_FillCenter: 1
@@ -4986,7 +4952,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1449863992}
   - component: {fileID: 1449863994}
-  - component: {fileID: 1449863993}
+  - component: {fileID: 1449863995}
   m_Layer: 0
   m_Name: LockOverlay
   m_TagString: Untagged
@@ -5014,36 +4980,6 @@ RectTransform:
   m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 240, y: 240}
   m_Pivot: {x: 0.5, y: 0.5}
---- !u!114 &1449863993
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1449863991}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: fe87c0e1cc204ed48ad3b37840f39efc, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Image
-  m_Material: {fileID: 0}
-  m_Color: {r: 1, g: 1, b: 1, a: 1}
-  m_RaycastTarget: 0
-  m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
-  m_Maskable: 1
-  m_OnCullStateChanged:
-    m_PersistentCalls:
-      m_Calls: []
-  m_Sprite: {fileID: 21300000, guid: 7d2a927007d02df4a824d4710a6f0218, type: 3}
-  m_Type: 0
-  m_PreserveAspect: 0
-  m_FillCenter: 1
-  m_FillMethod: 4
-  m_FillAmount: 1
-  m_FillClockwise: 1
-  m_FillOrigin: 0
-  m_UseSpriteMesh: 0
-  m_PixelsPerUnitMultiplier: 1
 --- !u!222 &1449863994
 CanvasRenderer:
   m_ObjectHideFlags: 0
@@ -5052,6 +4988,28 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1449863991}
   m_CullTransparentMesh: 1
+--- !u!114 &1449863995
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1449863991}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ef8b96895a0ec4ba685178a052544251, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Unity.VectorGraphics::Unity.VectorGraphics.SVGImage
+  m_Material: {fileID: 0}
+  m_Color: {r: 1, g: 1, b: 1, a: 1}
+  m_RaycastTarget: 1
+  m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
+  m_Maskable: 1
+  m_OnCullStateChanged:
+    m_PersistentCalls:
+      m_Calls: []
+  m_Sprite: {fileID: 3286163911610860551, guid: a8c56a1886a9eb34bb9d498a0b274424, type: 3}
+  m_PreserveAspect: 0
 --- !u!1 &1515222350
 GameObject:
   m_ObjectHideFlags: 0
@@ -6235,7 +6193,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 21300000, guid: 334f23c7ca9f9624c8df9fa4c3f7d4ef, type: 3}
+  m_Sprite: {fileID: 3286163911610860551, guid: dc21e886db7a99a4d9636dd8f86aeab7, type: 3}
   m_Type: 0
   m_PreserveAspect: 1
   m_FillCenter: 1
@@ -6709,7 +6667,7 @@ SpriteRenderer:
   m_Size: {x: 2.2, y: 2.88}
   m_AdaptiveModeThreshold: 0.5
   m_SpriteTileMode: 0
-  m_WasSpriteAssigned: 1
+  m_WasSpriteAssigned: 0
   m_SpriteSortPoint: 0
 --- !u!1 &2013444509
 GameObject:

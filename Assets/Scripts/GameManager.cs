@@ -142,8 +142,57 @@ namespace Sort
         void OnColumnLocked(Column c)
         {
             lockedCount++;
+            UpdateFrozenColumns();
             LogProgress();
             CheckWin();
+        }
+
+        /// <summary>
+        /// Recomputes the per-frozen-column "remaining columns to lock" count after every lock,
+        /// updates the FrozenOverlay text, and auto-unfreezes any column whose threshold is met.
+        /// Called from <see cref="OnColumnLocked"/> (after each lock) so the player sees the
+        /// countdown tick down live.
+        /// </summary>
+        void UpdateFrozenColumns()
+        {
+            for (int i = 0; i < columns.Count; i++)
+            {
+                var col = columns[i];
+                if (col == null || !col.IsFrozen) continue;
+
+                // Lock Color Stack counts only columns completed in the required color; plain Break
+                // Wall Stack counts every locked column (the global lockedCount).
+                int progress = col.FrozenLockColor
+                    ? CountLockedOfColor(col.FrozenRequiredColor, col)
+                    : lockedCount;
+
+                int remaining = col.FrozenUnlockThreshold - progress;
+                var overlay = col.GetComponentInChildren<FrozenOverlay>(true);
+                if (overlay != null) overlay.SetRemaining(remaining);
+
+                if (progress >= col.FrozenUnlockThreshold)
+                {
+                    col.Unfreeze();
+                    if (overlay != null) overlay.gameObject.SetActive(false);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Counts locked columns whose single completed color equals <paramref name="color"/>, excluding
+        /// <paramref name="exclude"/> (the frozen column itself). Used by Lock Color Stack to decide when
+        /// its threshold of same-colored completions has been met.
+        /// </summary>
+        int CountLockedOfColor(string color, Column exclude)
+        {
+            int n = 0;
+            for (int i = 0; i < columns.Count; i++)
+            {
+                var c = columns[i];
+                if (c == null || c == exclude || !c.IsLocked) continue;
+                if (c.TryGetMonoColor(out var cc) && cc == color) n++;
+            }
+            return n;
         }
 
         void LogProgress()

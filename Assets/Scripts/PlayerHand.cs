@@ -78,6 +78,12 @@ namespace Sort
         [Tooltip("Time each affected piece takes to lerp to its new slot when a rainbow sinks to the bottom.")]
         [SerializeField] private float rainbowSinkDuration = 0.25f;
 
+        [Header("Tie break animation")]
+        [Tooltip("Fade-out duration when a tied pair reaches the bottom row and the tie breaks. " +
+                 "TieVisual swaps to crack materials then alpha fades 1→0 over this many seconds, " +
+                 "then destroys itself.")]
+        [SerializeField] private float tieBreakFadeDuration = 0.3f;
+
         [Header("Questionmark reveal animation")]
         [Tooltip("Total time for the hop + mid-air color swap when a Questionmark is revealed.")]
         [SerializeField] private float revealHopDuration = 0.35f;
@@ -85,6 +91,18 @@ namespace Sort
         [SerializeField] private float revealHopHeight = 0.7f;
         [Tooltip("Optional pause between the move resolving and the reveal hop starting, so the reveal reads as 'earned'.")]
         [SerializeField] private float revealDelay = 0.03f;
+
+        [Header("Reject feedback (shake)")]
+        [Tooltip("Play a small shake on the held piece when the player taps a column that rejects the " +
+                 "move — a frozen / Lock Color Stack column (still locked), or an Only Stack Sort column " +
+                 "that doesn't accept the held color. Pure game-feel; no gameplay effect.")]
+        [SerializeField] private bool shakeOnReject = true;
+        [Tooltip("Total duration of the reject shake (seconds).")]
+        [SerializeField] private float rejectShakeDuration = 0.28f;
+        [Tooltip("Peak rotation of the reject shake (degrees) — wobble amplitude, decays to 0 over the duration.")]
+        [SerializeField] private float rejectShakeAngle = 12f;
+        [Tooltip("How many back-and-forth wobbles fit in the duration. Higher = faster, buzzier shake.")]
+        [SerializeField] private float rejectShakeOscillations = 3f;
 
         public Piece HeldPiece => heldPiece;
         public Transform HandAnchor => handAnchor;
@@ -112,6 +130,10 @@ namespace Sort
         bool isAnimating;
         readonly Queue<Transform> clickQueue = new Queue<Transform>();
 
+        // True while a reject-shake is playing on the held piece, so rapid wrong-taps don't stack
+        // shakes (which would compound the rotation offset). Cosmetic only — does NOT gate input.
+        bool heldShaking;
+
         public bool CanUndo => lastMoveColumn != null;
         public bool IsAnimating => isAnimating;
 
@@ -131,6 +153,9 @@ namespace Sort
         /// <summary>Fired when entering, advancing, or leaving a skill-targeting mode. UI listens to update hints.</summary>
         public event System.Action SkillModeChanged;
 
+        /// <summary>Fired on every piece tap (any column / skill pick). BoardIdleAnimator uses it to reset its idle timer.</summary>
+        public static event System.Action AnyInteraction;
+
         /// <summary>
         /// Assigns a piece as the held piece, parents it under the HandAnchor, and resets local position.
         /// Pass null to clear (e.g. when rebuilding the board between levels).
@@ -139,6 +164,29 @@ namespace Sort
         {
             if (p == null) { heldPiece = null; return; }
             PlaceInHand(p);
+        }
+
+        /// <summary>
+        /// Sets the held-piece placemat (HandPlace decoration) sprite from the level's themed
+        /// <see cref="LevelData.placeSprite"/>. No-op if there's no decoration / SpriteRenderer / sprite,
+        /// so a level that leaves placeSprite null keeps the prefab's authored decoration. Called by
+        /// LevelLoader on build.
+        /// </summary>
+        public void SetPlaceSprite(Sprite sprite)
+        {
+            if (sprite == null || handSlotDecoration == null) return;
+            // World-space placemat (SpriteRenderer) — on the decoration or a child.
+            var sr = handSlotDecoration.GetComponent<SpriteRenderer>();
+            if (sr == null) sr = handSlotDecoration.GetComponentInChildren<SpriteRenderer>(true);
+            if (sr != null) { sr.sprite = sprite; return; }
+            // Or a UGUI placemat (Image), on the decoration or a child.
+            var img = handSlotDecoration.GetComponent<UnityEngine.UI.Image>();
+            if (img == null) img = handSlotDecoration.GetComponentInChildren<UnityEngine.UI.Image>(true);
+            if (img != null) { img.sprite = sprite; return; }
+
+            Debug.LogWarning($"[PlayerHand] placeSprite is set but '{handSlotDecoration.name}' has no " +
+                             "SpriteRenderer/Image to receive it — wire Hand Slot Decoration to the placemat " +
+                             "object (e.g. HandPlace) and make sure it has a SpriteRenderer or Image.", this);
         }
 
         void Awake()
@@ -164,6 +212,9 @@ namespace Sort
             if (piece == null) return;
             if (GameManager.Instance != null && GameManager.Instance.IsGameOver) return;
 
+            // Any tap counts as interaction — reset the board's idle wind-sway timer.
+            AnyInteraction?.Invoke();
+
             switch (skillMode)
             {
                 case SkillMode.Switch: HandleSwitchPick(piece); return;
@@ -179,6 +230,10 @@ namespace Sort
 
             var col = column.GetComponent<Column>();
             if (col == null || col.IsLocked) return;
+            // Frozen columns block ALL interactions (the gating mechanic). Colliders are also
+            // disabled in Column.Freeze, but check here defensively in case the click came from
+            // a code path that bypasses the collider raycast (queued click, undo replay, etc.).
+            if (col.IsFrozen) { RejectFeedback(); return; }
 
             // Click queue: if we're mid-animation, hold this click for after.
             // (When the queued click fires, heldPiece will already have been refreshed
@@ -191,8 +246,85 @@ namespace Sort
 
             if (heldPiece == null) return;
 
-            if (useAnimations) StartCoroutine(DoMoveAnimated(col));
-            else               DoMoveInstant(col);
+            // Only Stack Sort: this column accepts only its configured color (rainbows are wild).
+            // Reject a non-matching held piece — the player must place it elsewhere. Checked at
+            // execution time (not when queued) since the held piece can change between queued clicks.
+            if (!col.AcceptsPiece(heldPiece)) { RejectFeedback(); return; }
+
+            if (useAnimations)
+            {
+                // Detect tied chain: BFS via Piece.TiedPartner. If the clicked col is bound to one
+                // or more neighbors, ALL of them shift together. Clicked col ejects to hand; the
+                // others wrap bottom → top. Tied pair that ends up at the bottom row breaks.
+                var chain = FindTiedChain(col);
+                if (chain.Count > 1)
+                    StartCoroutine(DoTiedShiftAnimated(col, chain));
+                else
+                    StartCoroutine(DoMoveAnimated(col));
+            }
+            else
+            {
+                // Instant path doesn't support tied shifts — fall back to plain instant (ignores ties).
+                DoMoveInstant(col);
+            }
+        }
+
+        /// <summary>
+        /// Game-feel only: shakes the held piece to signal a rejected tap (frozen column, or an Only
+        /// Stack Sort color mismatch). No-op if disabled, no held piece, mid-move, or already shaking.
+        /// Does NOT set isAnimating, so the player can keep interacting normally.
+        /// </summary>
+        void RejectFeedback()
+        {
+            if (!shakeOnReject || heldPiece == null || isAnimating || heldShaking) return;
+            StartCoroutine(ShakeHeldPiece());
+        }
+
+        IEnumerator ShakeHeldPiece()
+        {
+            heldShaking = true;
+            var p = heldPiece;
+            if (p != null)
+                yield return p.AnimateShake(rejectShakeDuration, rejectShakeAngle, rejectShakeOscillations);
+            heldShaking = false;
+        }
+
+        /// <summary>
+        /// Returns the set of columns that move together with <paramref name="clicked"/>: itself plus
+        /// every column reachable by walking <see cref="Piece.TiedPartner"/> refs transitively. Locked
+        /// columns are skipped (they shouldn't have active ties per design, but defensive).
+        /// </summary>
+        List<Column> FindTiedChain(Column clicked)
+        {
+            var chain = new List<Column> { clicked };
+            var visited = new HashSet<Column> { clicked };
+            var queue = new Queue<Column>();
+            queue.Enqueue(clicked);
+
+            while (queue.Count > 0)
+            {
+                var col = queue.Dequeue();
+                for (int i = 0; i < col.transform.childCount; i++)
+                {
+                    var p = col.transform.GetChild(i).GetComponent<Piece>();
+                    if (p == null || !p.IsTied) continue;
+                    var partner = p.TiedPartner;
+                    if (partner == null || partner.transform.parent == null) continue;
+                    var partnerCol = partner.transform.parent.GetComponent<Column>();
+                    if (partnerCol == null || visited.Contains(partnerCol)) continue;
+                    if (partnerCol.IsLocked) continue;
+                    // Frozen partner columns are excluded from the tied chain — clicking the
+                    // non-frozen side won't drag the frozen column's pieces along (they're locked
+                    // behind the unfreeze gate). Tie visual may visually stretch in this edge case;
+                    // designer should avoid configuring ties that span frozen columns when possible.
+                    if (partnerCol.IsFrozen) continue;
+                    visited.Add(partnerCol);
+                    chain.Add(partnerCol);
+                    queue.Enqueue(partnerCol);
+                }
+            }
+
+            return chain;
         }
 
         // ---------------------------------------------------------------------
@@ -370,6 +502,192 @@ namespace Sort
         /// style land bounce. Sequential inside this coroutine; the OUTER animations list runs this
         /// in parallel with the held-piece arc and shifters, so the held + ejected motions overlap.
         /// </summary>
+        /// <summary>
+        /// Tied shift: every column in <paramref name="chain"/> moves on the same beat. The
+        /// <paramref name="clickedCol"/> performs a normal Sort# move (held piece in at top, bottom
+        /// pops to hand). Non-clicked columns CIRCULARLY rotate (bottom wraps to top, everyone else
+        /// shifts down 1) — no piece leaves these columns.
+        /// After the animations land, any tied pair now at the bottom row of its column (or already
+        /// past it, i.e. ejected/wrapped) breaks: the visual plays Crack+Fade and the
+        /// <see cref="Piece.TiedPartner"/> refs are cleared on both sides.
+        /// Move counter advances by 1 (the tied shift is one player action). Rewind is BLOCKED for
+        /// tied shifts — restoring multi-column + tie state is complex; players use Switch/Magnet
+        /// for surgical changes anyway.
+        /// </summary>
+        IEnumerator DoTiedShiftAnimated(Column clickedCol, List<Column> chain)
+        {
+            isAnimating = true;
+
+            // --- Snapshot per-col data BEFORE any mutation ---
+            var snaps = new Dictionary<Column, List<Piece>>();
+            var bottomsBefore = new HashSet<Piece>();
+            foreach (var col in chain)
+            {
+                var snap = SnapshotColumnPieces(col.transform);
+                snaps[col] = snap;
+                if (snap.Count > 0) bottomsBefore.Add(snap[snap.Count - 1]);
+            }
+
+            // --- Reparent / sibling-reorder upfront so logical state is correct before animation ---
+            Piece toInsert = heldPiece;
+            Piece ejected = (snaps[clickedCol].Count > 0) ? snaps[clickedCol][snaps[clickedCol].Count - 1] : null;
+            heldPiece = null;
+
+            // Clicked col: held → top; ejected → handAnchor (worldPosStays so visuals don't snap).
+            if (toInsert != null)
+            {
+                toInsert.transform.SetParent(clickedCol.transform, worldPositionStays: true);
+                toInsert.transform.SetSiblingIndex(0);
+            }
+            if (ejected != null)
+                ejected.transform.SetParent(handAnchor, worldPositionStays: true);
+
+            // Non-clicked cols: bottom moves to sibling 0 (becomes new top). Stays a child of its col.
+            foreach (var col in chain)
+            {
+                if (col == clickedCol) continue;
+                var snap = snaps[col];
+                if (snap.Count == 0) continue;
+                var bottom = snap[snap.Count - 1];
+                bottom.transform.SetSiblingIndex(0);
+            }
+
+            // --- Spawn all motion coroutines in parallel ---
+            var animations = new List<Coroutine>();
+            foreach (var col in chain)
+            {
+                var snap = snaps[col];
+                if (snap.Count == 0) continue;
+                Vector3 layoutDir = col.LayoutDirection;
+                float spacing = col.PieceSpacing;
+                Vector3 colUpLocal = -col.LayoutDirection.normalized;
+
+                if (col == clickedCol)
+                {
+                    if (toInsert != null)
+                        animations.Add(StartCoroutine(toInsert.AnimateLocalArcTo(
+                            Vector3.zero, toInsert.RestRotation, heldToTopDuration, dropArcHeight, colUpLocal, Easing.SmoothStep)));
+                    // Shifters: snap[0..n-2] → slot i+1.
+                    for (int i = 0; i < snap.Count - 1; i++)
+                    {
+                        var p = snap[i];
+                        Vector3 newSlot = layoutDir * ((i + 1) * spacing);
+                        animations.Add(StartCoroutine(p.AnimateLocalTo(
+                            newSlot, p.RestRotation, shiftAndPopDuration, Easing.SmoothStep)));
+                    }
+                    // Ejected → hand with bounce (reuses the same helper as the simple-move path).
+                    if (ejected != null)
+                        animations.Add(StartCoroutine(EjectedArcThenBounce(ejected, heldPieceLocalOffset)));
+                }
+                else
+                {
+                    // Non-clicked: bottom (= snap[last]) wraps to top with an arc.
+                    var bottom = snap[snap.Count - 1];
+                    animations.Add(StartCoroutine(bottom.AnimateLocalArcTo(
+                        Vector3.zero, bottom.RestRotation, heldToTopDuration, dropArcHeight, colUpLocal, Easing.SmoothStep)));
+                    // Other pieces shift down 1 slot (same target math as clicked col's shifters).
+                    for (int i = 0; i < snap.Count - 1; i++)
+                    {
+                        var p = snap[i];
+                        Vector3 newSlot = layoutDir * ((i + 1) * spacing);
+                        animations.Add(StartCoroutine(p.AnimateLocalTo(
+                            newSlot, p.RestRotation, shiftAndPopDuration, Easing.SmoothStep)));
+                    }
+                }
+            }
+
+            foreach (var co in animations) yield return co;
+
+            // --- Bind ejected as new held ---
+            if (ejected != null) heldPiece = ejected;
+
+            // --- Tie break detection: union of pieces at the bottom BEFORE shift (now ejected/wrapped)
+            //     and pieces at the bottom AFTER shift. Any tied piece in this union → its tie broke.
+            var bottomsAfter = new HashSet<Piece>();
+            foreach (var col in chain)
+            {
+                var cur = SnapshotColumnPieces(col.transform);
+                if (cur.Count > 0) bottomsAfter.Add(cur[cur.Count - 1]);
+            }
+
+            var brokenTies = new List<(Piece a, Piece b)>();
+            var seenInBreak = new HashSet<Piece>();
+            void TryQueueBreak(Piece p)
+            {
+                if (p == null || !p.IsTied || seenInBreak.Contains(p)) return;
+                var partner = p.TiedPartner;
+                if (partner == null) return;
+                brokenTies.Add((p, partner));
+                seenInBreak.Add(p);
+                seenInBreak.Add(partner);
+            }
+            foreach (var p in bottomsBefore) TryQueueBreak(p);
+            foreach (var p in bottomsAfter) TryQueueBreak(p);
+
+            // --- Fire crack+fade on each broken tie's visual, clear the refs ---
+            if (brokenTies.Count > 0)
+            {
+                var allTies = FindObjectsByType<TieVisual>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
+                foreach (var (a, b) in brokenTies)
+                {
+                    foreach (var tv in allTies)
+                    {
+                        if ((tv.PieceA == a && tv.PieceB == b) || (tv.PieceA == b && tv.PieceB == a))
+                        {
+                            StartCoroutine(tv.CrackAndFade(tieBreakFadeDuration));
+                            break;
+                        }
+                    }
+                    a.SetTiedPartner(null);
+                    b.SetTiedPartner(null);
+                }
+            }
+
+            // --- Animated Q? reveal for any column in the chain ---
+            int revealThreshold = 2;
+            if (LevelLoader.Instance != null && LevelLoader.Instance.CurrentLevel != null)
+                revealThreshold = LevelLoader.Instance.CurrentLevel.questionmarkRevealFromBottom;
+            var revealAnims = new List<Coroutine>();
+            foreach (var col in chain)
+            {
+                var toReveal = col.FindQuestionmarksToReveal(revealThreshold);
+                foreach (var p in toReveal)
+                    revealAnims.Add(StartCoroutine(p.AnimateRevealHop(revealHopDuration, revealHopHeight, Vector3.up, Vector3.zero)));
+            }
+            if (revealAnims.Count > 0 && revealDelay > 0f) yield return new WaitForSeconds(revealDelay);
+            foreach (var co in revealAnims) yield return co;
+
+            // --- Snap layouts + lock evaluation for every col in chain ---
+            foreach (var col in chain) col.Layout();
+            foreach (var col in chain) col.EvaluateLock();
+
+            // --- Fire celebrations (background, doesn't block input) ---
+            foreach (var col in chain)
+            {
+                if (col.IsLocked)
+                    StartCoroutine(CelebrateColumnDeferred(col));
+            }
+
+            // Block rewind: tied moves restore would need to recover multi-col state + tie bindings,
+            // which is complex. Players have Switch/Magnet for surgical changes.
+            lastMoveColumn = null;
+            lastMoveLockedColumn = false;
+
+            GameManager.Instance?.NotifyMoveMade();
+            StateChanged?.Invoke();
+
+            yield return StartCoroutine(UpdateRainbowSinkOpportunitiesAnimated());
+
+            isAnimating = false;
+
+            // Drain queued click if any.
+            if (clickQueue.Count > 0)
+            {
+                var next = clickQueue.Dequeue();
+                HandleColumnClick(next);
+            }
+        }
+
         IEnumerator EjectedArcThenBounce(Piece p, Vector3 targetLocalPos)
         {
             yield return StartCoroutine(p.AnimateLocalArcTo(
@@ -410,8 +728,14 @@ namespace Sort
             if (isAnimating) return;
             var col = piece.transform.parent != null ? piece.transform.parent.GetComponent<Column>() : null;
             if (col == null || col.IsLocked) return;
+            // Frozen columns block Switch — even though the piece's collider is disabled while
+            // frozen, this is a defensive check for any code path that bypasses the raycast.
+            if (col.IsFrozen) return;
             // Hidden Questionmark has no known color — swapping it leaves the game state inscrutable.
             if (piece.IsQuestionmark && !piece.IsRevealed) return;
+            // Tied pieces cannot be Switch'd — design rule. Swapping one half of a tie across columns
+            // would either drag its partner across (mechanically weird) or break the tie unexpectedly.
+            if (piece.IsTied) return;
 
             if (switchPickA == null)
             {
@@ -534,8 +858,14 @@ namespace Sort
             if (isAnimating) return;
             var col = piece.transform.parent != null ? piece.transform.parent.GetComponent<Column>() : null;
             if (col == null || col.IsLocked) return;
+            // Frozen columns block Magnet — both as the source piece's column AND as a gather target.
+            // Defensive check on top of the Column.Freeze collider disable.
+            if (col.IsFrozen) return;
             if (piece.IsRainbow) return;                       // No color to gather.
             if (piece.IsQuestionmark && !piece.IsRevealed) return;
+            // Tied pieces are immune to Magnet — gathering one half across columns would either drag
+            // its partner along (incoherent visuals) or silently break the tie (player surprise).
+            if (piece.IsTied) return;
 
             // Compute the plan BEFORE spending coins so we can refuse no-op magnets
             // (e.g. the clicked color only exists in the target column already).
@@ -560,7 +890,7 @@ namespace Sort
         class MagnetPlan
         {
             public Column targetCol;
-            public PieceColor targetColor;
+            public string targetColor;
             public int slotCount;
             public List<MagnetCandidate> gathered;       // pieces that gather into targetCol
             public List<Piece> kept;                     // non-match pieces staying in targetCol (top of column)
@@ -571,7 +901,7 @@ namespace Sort
             public HashSet<Column> affectedSources;
         }
 
-        MagnetPlan BuildMagnetPlan(Column targetCol, PieceColor targetColor)
+        MagnetPlan BuildMagnetPlan(Column targetCol, string targetColor)
         {
             var allCols = GameManager.Instance != null ? GameManager.Instance.Columns : null;
             if (allCols == null) return null;
@@ -583,14 +913,17 @@ namespace Sort
             int slotCount = CountPieces(targetCol);
             if (slotCount == 0) return null;
 
-            // Collect every same-color piece in any UNLOCKED column (target included).
+            // Collect every same-color piece in any UNLOCKED, UNFROZEN column (target included).
             // Skip Rainbow (wildcard, by design doesn't get magneted) and hidden Questionmark
-            // (its real color isn't yet known to the player).
+            // (its real color isn't yet known to the player). Frozen columns are completely
+            // off-limits to Magnet — pieces inside aren't pulled out, and they don't receive
+            // displaced pieces either.
             var candidates = new List<MagnetCandidate>();
             for (int ci = 0; ci < allCols.Count; ci++)
             {
                 var c = allCols[ci];
                 if (c == null || c.IsLocked) continue;
+                if (c.IsFrozen) continue;
                 int slot = 0;
                 for (int i = 0; i < c.transform.childCount; i++)
                 {
@@ -895,6 +1228,7 @@ namespace Sort
             {
                 var c = cols[i];
                 if (c == null || c.IsLocked) continue;
+                if (c.IsFrozen) continue;   // Frozen columns are inert — no rainbow sink, no shifts.
                 if (c.ShouldSinkRainbow(heldColor))
                 {
                     c.MoveRainbowsToBottom();
@@ -920,6 +1254,7 @@ namespace Sort
             {
                 var c = cols[i];
                 if (c == null || c.IsLocked) continue;
+                if (c.IsFrozen) continue;   // Frozen columns are inert — no rainbow sink, no shifts.
                 if (c.ShouldSinkRainbow(heldColor))
                     sinkAnims.Add(StartCoroutine(AnimateRainbowSink(c)));
             }
