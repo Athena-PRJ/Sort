@@ -343,13 +343,18 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Sort.MainBoardBuilder
   indicatorRotation: {x: 85, y: 0, z: 0}
-  indicatorSizeFraction: 0.05
+  doneSizeFraction: 0.06
+  notDoneSizeFraction: 0.03
   tickSizeFraction: 0.03
+  indicatorSizeFraction: 0.05
+  standardRowsForIconScale: 3
   statusEdgeGapFraction: 0.015
   outEdgeGapFraction: 0.05
   liftFraction: 0.1
+  statusIconOffset: {x: 0, y: -0.5, z: 0}
   columnSpacingOverride: 1.5
   indicatorSortingOrder: 10
+  indicatorOverrides: []
 --- !u!114 &122702331
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -5041,8 +5046,8 @@ MonoBehaviour:
   m_fontMaterials: []
   m_fontColor32:
     serializedVersion: 2
-    rgba: 4284506548
-  m_fontColor: {r: 0.7058824, g: 0.3803922, b: 0.37647063, a: 1}
+    rgba: 4283786578
+  m_fontColor: {r: 0.32156864, g: 0.39607844, b: 0.33333334, a: 1}
   m_enableVertexGradient: 0
   m_colorMode: 3
   m_fontColorGradient:
@@ -5253,8 +5258,8 @@ MonoBehaviour:
   m_fontMaterials: []
   m_fontColor32:
     serializedVersion: 2
-    rgba: 4284506548
-  m_fontColor: {r: 0.7058824, g: 0.3803922, b: 0.37647063, a: 1}
+    rgba: 4283786578
+  m_fontColor: {r: 0.32156864, g: 0.39607844, b: 0.33333334, a: 1}
   m_enableVertexGradient: 0
   m_colorMode: 3
   m_fontColorGradient:
@@ -5867,8 +5872,8 @@ MonoBehaviour:
   m_fontMaterials: []
   m_fontColor32:
     serializedVersion: 2
-    rgba: 4284308936
-  m_fontColor: {r: 0.7830189, g: 0.36565503, b: 0.36565503, a: 1}
+    rgba: 4283786578
+  m_fontColor: {r: 0.32156864, g: 0.39607844, b: 0.33333334, a: 1}
   m_enableVertexGradient: 0
   m_colorMode: 3
   m_fontColorGradient:

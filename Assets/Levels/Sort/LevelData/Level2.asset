@@ -16,7 +16,7 @@ MonoBehaviour:
   difficulty: 0
   piecePrefab: {fileID: 2697371083170223703, guid: 12b960f967f10bf4dad210ed95c13691, type: 3}
   paletteStyle: 1
-  mainBoardSprite: {fileID: 21300000, guid: d324fbb057fd59c41b5aeb63549d11ae, type: 3}
+  mainBoardSprite: {fileID: 3286163911610860551, guid: d8660d9b3c954424eb8cd5748a0a1f03, type: 3}
   backgroundSprite: {fileID: 21300000, guid: c0c20495a499db8468d38f8e9e9ad488, type: 3}
   outSprite: {fileID: 3286163911610860551, guid: 4b2d94d2e432b1b409114b8ba3fc27f4, type: 3}
   placeSprite: {fileID: 3286163911610860551, guid: 63d698cf986b7a643b613703f7332ba3, type: 3}

@@ -16,54 +16,33 @@ MonoBehaviour:
   difficulty: 1
   piecePrefab: {fileID: 8595755308906869233, guid: dfdf8c852b0e5104184c4e0f60f2ebb9, type: 3}
   paletteStyle: 1
-  mainBoardSprite: {fileID: 21300000, guid: 8e96ba1135710fa49bf8881599e85d0e, type: 3}
-  backgroundSprite: {fileID: 0}
-  outSprite: {fileID: 0}
-  placeSprite: {fileID: 0}
-  notDoneSprite: {fileID: 0}
-  doneSprite: {fileID: 0}
-  tickSprite: {fileID: 0}
+  mainBoardSprite: {fileID: 3286163911610860551, guid: 415bea05b4432974abb3d749add49ab3, type: 3}
+  backgroundSprite: {fileID: 21300000, guid: 4e14f3cb640aca44ea39a0c88b21255f, type: 3}
+  outSprite: {fileID: 3286163911610860551, guid: 6fdc76b67fa7cff42b56568bf5f6949a, type: 3}
+  placeSprite: {fileID: 3286163911610860551, guid: d5ebbd75bea664a4fbf7cb1a36183d4a, type: 3}
+  notDoneSprite: {fileID: 3286163911610860551, guid: c3440aec7d489ef4aaee70611c48d8d2, type: 3}
+  doneSprite: {fileID: 3286163911610860551, guid: 0e76e7708c1fe6e46885085b8cbb20fc, type: 3}
+  tickSprite: {fileID: 3286163911610860551, guid: 8470cefae9c15c847b6e1fe7514c88a7, type: 3}
   moveLimit: 20
   startingHeldPiece:
-    color: 0
+    color: Cactus
     isRainbow: 1
     isQuestionmark: 0
   columns:
   - pieces:
-    - color: 1
+    - color: Red
       isRainbow: 0
       isQuestionmark: 0
-    - color: 0
+    - color: Leaf
       isRainbow: 0
       isQuestionmark: 0
-    - color: 0
+    - color: Lime
       isRainbow: 0
       isQuestionmark: 0
-    - color: 0
+    - color: White
       isRainbow: 0
       isQuestionmark: 0
-    - color: 0
-      isRainbow: 0
-      isQuestionmark: 0
-    lockColorStack: 0
-    requiredColor: 
-    lockColorUnlockThreshold: 1
-    onlyStackSort: 0
-    onlyStackColor: 
-  - pieces:
-    - color: 2
-      isRainbow: 0
-      isQuestionmark: 0
-    - color: 2
-      isRainbow: 0
-      isQuestionmark: 0
-    - color: 0
-      isRainbow: 0
-      isQuestionmark: 0
-    - color: 2
-      isRainbow: 0
-      isQuestionmark: 0
-    - color: 2
+    - color: Black
       isRainbow: 0
       isQuestionmark: 0
     lockColorStack: 0
@@ -72,40 +51,19 @@ MonoBehaviour:
     onlyStackSort: 0
     onlyStackColor: 
   - pieces:
-    - color: 1
+    - color: Black
       isRainbow: 0
       isQuestionmark: 0
-    - color: 3
+    - color: Leaf
       isRainbow: 0
       isQuestionmark: 0
-    - color: 1
+    - color: Red
       isRainbow: 0
       isQuestionmark: 0
-    - color: 1
+    - color: White
       isRainbow: 0
       isQuestionmark: 0
-    - color: 1
-      isRainbow: 0
-      isQuestionmark: 0
-    lockColorStack: 0
-    requiredColor: 
-    lockColorUnlockThreshold: 1
-    onlyStackSort: 0
-    onlyStackColor: 
-  - pieces:
-    - color: 3
-      isRainbow: 0
-      isQuestionmark: 0
-    - color: 3
-      isRainbow: 0
-      isQuestionmark: 0
-    - color: 3
-      isRainbow: 0
-      isQuestionmark: 0
-    - color: 3
-      isRainbow: 0
-      isQuestionmark: 0
-    - color: 8
+    - color: Lime
       isRainbow: 0
       isQuestionmark: 0
     lockColorStack: 0
@@ -114,19 +72,19 @@ MonoBehaviour:
     onlyStackSort: 0
     onlyStackColor: 
   - pieces:
-    - color: 8
+    - color: Lime
       isRainbow: 0
       isQuestionmark: 0
-    - color: 8
+    - color: Black
       isRainbow: 0
       isQuestionmark: 0
-    - color: 8
+    - color: Leaf
       isRainbow: 0
       isQuestionmark: 0
-    - color: 8
+    - color: Red
       isRainbow: 0
       isQuestionmark: 0
-    - color: 2
+    - color: White
       isRainbow: 0
       isQuestionmark: 0
     lockColorStack: 0
@@ -134,7 +92,53 @@ MonoBehaviour:
     lockColorUnlockThreshold: 1
     onlyStackSort: 0
     onlyStackColor: 
-  ties: []
+  - pieces:
+    - color: White
+      isRainbow: 0
+      isQuestionmark: 0
+    - color: Red
+      isRainbow: 0
+      isQuestionmark: 0
+    - color: Lime
+      isRainbow: 0
+      isQuestionmark: 0
+    - color: Black
+      isRainbow: 0
+      isQuestionmark: 0
+    - color: Leaf
+      isRainbow: 0
+      isQuestionmark: 0
+    lockColorStack: 0
+    requiredColor: 
+    lockColorUnlockThreshold: 1
+    onlyStackSort: 0
+    onlyStackColor: 
+  - pieces:
+    - color: Leaf
+      isRainbow: 0
+      isQuestionmark: 0
+    - color: Lime
+      isRainbow: 0
+      isQuestionmark: 0
+    - color: Red
+      isRainbow: 0
+      isQuestionmark: 0
+    - color: White
+      isRainbow: 0
+      isQuestionmark: 0
+    - color: Black
+      isRainbow: 0
+      isQuestionmark: 0
+    lockColorStack: 0
+    requiredColor: 
+    lockColorUnlockThreshold: 1
+    onlyStackSort: 0
+    onlyStackColor: 
+  ties:
+  - columnA: 0
+    row: 3
+  - columnA: 2
+    row: 1
   frozenColumns: []
   nextLevel: {fileID: 11400000, guid: fa6976ec0b2ad3e4d8644e30cd921991, type: 2}
   questionmarkRevealFromBottom: 1

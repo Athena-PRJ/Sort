@@ -34,6 +34,11 @@ namespace Sort
         [SerializeField] private float tickSizeFraction = 0.03f;
         [Tooltip("Bottom OUT arrow size as a fraction of the board's height.")]
         [SerializeField] private float indicatorSizeFraction = 0.05f;
+        [Tooltip("The row count your size fractions are tuned for (the standard grid's rows — usually 3). " +
+                 "Icon sizes are auto-multiplied by standardRows/rows so they stay PROPORTIONAL TO THE " +
+                 "COLUMNS on grids with a different row count (otherwise a 2-row board's icons look small " +
+                 "and a 5-row board's look too big). At this row count the size is unchanged.")]
+        [SerializeField] private int standardRowsForIconScale = 3;
 
         [Header("Placement — fractions of board height (auto-adapt per grid)")]
         [Tooltip("Gap of the TOP status icon from the board's top edge, as a fraction of board height. " +
@@ -58,6 +63,13 @@ namespace Sort
         [Header("Sorting")]
         [Tooltip("SpriteRenderer sorting order (tick draws at +1 so it sits over the done icon).")]
         [SerializeField] private int indicatorSortingOrder = 10;
+
+        [Header("Per-grid overrides (fine-tune specific grid sizes)")]
+        [Tooltip("Optional manual tweaks per grid. If a level's grid (cols × rows) matches an entry, its " +
+                 "values layer ON TOP of the auto row-compensation: Size Multiplier scales all icons, " +
+                 "Status / Out Offset nudge the top / bottom icons, Column Spacing Override sets the icon " +
+                 "spacing. Leave the array empty to rely purely on the auto-scaling.")]
+        [SerializeField] private GridIndicatorOverride[] indicatorOverrides = new GridIndicatorOverride[0];
 
         float cellWidth;
         Transform indicatorParent;
@@ -96,6 +108,23 @@ namespace Sort
             cellWidth = columnSpacingOverride > 0f ? columnSpacingOverride
                       : (board != null && board.ColumnSpacing > 0f ? board.ColumnSpacing : 2.7f);
 
+            // Per-grid override + row-count compensation. Icon sizes are a fraction of board HEIGHT, which
+            // grows with row count — so without compensation a 2-row board's icons look small next to its
+            // (wider) columns and a 5-row board's look big. rowComp = standardRows / rows keeps icon size
+            // PROPORTIONAL TO COLUMN WIDTH on any grid, and is exactly 1 at the standard row count (so the
+            // tuned 3-row look is untouched). A matching GridIndicatorOverride then layers manual tweaks on top.
+            GridIndicatorOverride ov = default;
+            bool hasOv = false;
+            if (indicatorOverrides != null)
+                for (int i = 0; i < indicatorOverrides.Length; i++)
+                    if (indicatorOverrides[i].gridSize.x == cols && indicatorOverrides[i].gridSize.y == rows)
+                    { ov = indicatorOverrides[i]; hasOv = true; break; }
+            if (hasOv && ov.columnSpacingOverride > 0f) cellWidth = ov.columnSpacingOverride;
+            float rowComp = (float)Mathf.Max(1, standardRowsForIconScale) / Mathf.Max(1, rows);
+            float sizeMul = rowComp * (hasOv && ov.sizeMultiplier > 0f ? ov.sizeMultiplier : 1f);
+            Vector3 statusExtra = hasOv ? ov.statusOffset : Vector3.zero;
+            Vector3 outExtra    = hasOv ? ov.outOffset : Vector3.zero;
+
             var level   = LevelLoader.Instance != null ? LevelLoader.Instance.CurrentLevel : null;
             var columns = GameManager.Instance != null ? GameManager.Instance.Columns : null;
             if (level == null) return;
@@ -113,10 +142,10 @@ namespace Sort
             float statusZ = topEdgeZ + boardExtentZ * statusEdgeGapFraction;
             float outZ    = botEdgeZ - boardExtentZ * outEdgeGapFraction;
             float lift    = boardExtentZ * liftFraction;
-            float doneScale    = boardExtentZ * doneSizeFraction;
-            float notDoneScale = boardExtentZ * notDoneSizeFraction;
-            float tickS        = boardExtentZ * tickSizeFraction;
-            float outScale     = boardExtentZ * indicatorSizeFraction;
+            float doneScale    = boardExtentZ * doneSizeFraction * sizeMul;
+            float notDoneScale = boardExtentZ * notDoneSizeFraction * sizeMul;
+            float tickS        = boardExtentZ * tickSizeFraction * sizeMul;
+            float outScale     = boardExtentZ * indicatorSizeFraction * sizeMul;
 
             float leftX = -((cols - 1) * cellWidth) * 0.5f;
             Quaternion rot = Quaternion.Euler(indicatorRotation);
@@ -131,7 +160,7 @@ namespace Sort
                 Sprite frameSprite = level.doneSprite != null ? level.doneSprite : level.notDoneSprite;
                 if (frameSprite != null)
                 {
-                    var sPos = new Vector3(x, lift, statusZ) + statusIconOffset;
+                    var sPos = new Vector3(x, lift, statusZ) + statusIconOffset + statusExtra;
                     var frameGO = Spawn(frameSprite, sPos, rot, new Vector3(doneScale, doneScale, 1f), indicatorSortingOrder);
 
                     // Inner not-done — only when there's a distinct done frame for it to sit inside.
@@ -155,7 +184,7 @@ namespace Sort
                 // Bottom out arrow.
                 if (level.outSprite != null)
                 {
-                    var oPos = new Vector3(x, lift, outZ);
+                    var oPos = new Vector3(x, lift, outZ) + outExtra;
                     Spawn(level.outSprite, oPos, rot, new Vector3(outScale, outScale, 1f), indicatorSortingOrder);
                 }
             }
@@ -187,5 +216,24 @@ namespace Sort
             }
             spawned.Clear();
         }
+    }
+
+    /// <summary>
+    /// Per-grid indicator tweak — layered on top of MainBoardBuilder's auto row-compensation for a
+    /// specific grid size. Add an entry per grid you want to fine-tune (2×2, 4×4, …).
+    /// </summary>
+    [System.Serializable]
+    public struct GridIndicatorOverride
+    {
+        [Tooltip("Grid size (cols × rows) this override applies to.")]
+        public Vector2Int gridSize;
+        [Tooltip("Multiplies ALL indicator sizes for this grid, on top of the auto row-compensation. ≤0 = 1 (no change).")]
+        public float sizeMultiplier;
+        [Tooltip("Extra Board-local position nudge for the TOP status frame on this grid (type X / Y / Z).")]
+        public Vector3 statusOffset;
+        [Tooltip("Extra Board-local position nudge for the BOTTOM out arrow on this grid.")]
+        public Vector3 outOffset;
+        [Tooltip("Indicator column spacing for this grid. ≤0 = use the base / auto spacing.")]
+        public float columnSpacingOverride;
     }
 }
