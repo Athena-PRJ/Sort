@@ -196,7 +196,7 @@ namespace Sort
                 }
                 else
                 {
-                    if (col.IsFrozen) col.Unfreeze();
+                    if (col.IsFrozen) { col.Unfreeze(); SfxManager.Play(SfxId.Unfreeze); }
                     if (overlay != null && overlay.gameObject.activeSelf) overlay.gameObject.SetActive(false);
                 }
             }
@@ -233,6 +233,7 @@ namespace Sort
             if (columns.Count > 0 && lockedCount >= columns.Count)
             {
                 IsWon = true;
+                SfxManager.Play(SfxId.Win);
                 if (winPanel != null) winPanel.SetActive(true);
 
                 var loader = LevelLoader.Instance;

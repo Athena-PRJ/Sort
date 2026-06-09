@@ -42,6 +42,10 @@ namespace Sort
             if (!Enabled) return;
 #if UNITY_ANDROID && !UNITY_EDITOR
             AndroidVibrate(18, 60); // ~18 ms, low amplitude (1-255) → a subtle tick, not a full buzz
+#elif UNITY_EDITOR
+            // No device to buzz in the Editor — log so you can VERIFY the call fires and respects the
+            // on/off setting: tap a column with haptics ON → a line appears each tap; toggle OFF → silence.
+            Debug.Log("[Haptics] LightTap (enabled) — would vibrate on a device.");
 #endif
             // iOS / other platforms: intentionally no-op (see class summary).
         }

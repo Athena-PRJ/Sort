@@ -79,7 +79,16 @@ namespace Sort
         [Tooltip("Time each affected piece takes to lerp to its new slot when a rainbow sinks to the bottom.")]
         [SerializeField] private float rainbowSinkDuration = 0.25f;
 
-        [Header("Tie break animation")]
+        [Header("Tie shift + break animation")]
+        [Tooltip("Tied-shift flight SPEED in column-local units/sec. Every piece in a tied shift (the " +
+                 "dropped piece, the down-shifters, and the bottom→top wraps) moves at THIS constant speed, " +
+                 "so each one's duration scales with its travel distance — pieces glide uniformly instead " +
+                 "of some arriving early and some late (the old fixed-duration look). Higher = snappier. " +
+                 "~8 ≈ a 1-slot shift in ~0.25s; a full-column wrap takes proportionally longer.")]
+        [SerializeField] private float tieShiftSpeed = 8f;
+        [Tooltip("Floor on any single tied-shift move's duration, so a near-zero-distance move still eases " +
+                 "smoothly instead of snapping.")]
+        [SerializeField] private float tieShiftMinDuration = 0.12f;
         [Tooltip("Fade-out duration when a tied pair reaches the bottom row and the tie breaks. " +
                  "TieVisual swaps to crack materials then alpha fades 1→0 over this many seconds, " +
                  "then destroys itself.")]
@@ -255,6 +264,9 @@ namespace Sort
             // execution time (not when queued) since the held piece can change between queued clicks.
             if (!col.AcceptsPiece(heldPiece)) { RejectFeedback(); return; }
 
+            // Valid drop confirmed → click SFX (rejected taps play their own sound in RejectFeedback).
+            SfxManager.Play(SfxId.ColumnClick);
+
             if (useAnimations)
             {
                 // Detect tied chain: BFS via Piece.TiedPartner. If the clicked col is bound to one
@@ -280,6 +292,8 @@ namespace Sort
         /// </summary>
         void RejectFeedback()
         {
+            // Sound plays on every rejected tap, even when the shake is disabled / already running.
+            SfxManager.Play(SfxId.Reject);
             if (!shakeOnReject || heldPiece == null || isAnimating || heldShaking) return;
             StartCoroutine(ShakeHeldPiece());
         }
@@ -557,6 +571,9 @@ namespace Sort
             }
 
             // --- Spawn all motion coroutines in parallel ---
+            // Every tied-shift piece flies at the SAME column-local speed (duration ∝ distance via
+            // TieShiftDuration) so the whole shift reads as one coherent rotation — no more "some pieces
+            // arrive before others" from a 1-slot shifter and a bottom→top wrap sharing one fixed duration.
             var animations = new List<Coroutine>();
             foreach (var col in chain)
             {
@@ -570,14 +587,15 @@ namespace Sort
                 {
                     if (toInsert != null)
                         animations.Add(StartCoroutine(toInsert.AnimateLocalArcTo(
-                            Vector3.zero, toInsert.RestRotation, heldToTopDuration, dropArcHeight, colUpLocal, Easing.SmoothStep)));
+                            Vector3.zero, toInsert.RestRotation,
+                            TieShiftDuration(toInsert.transform.localPosition, Vector3.zero), dropArcHeight, colUpLocal, Easing.SmoothStep)));
                     // Shifters: snap[0..n-2] → slot i+1.
                     for (int i = 0; i < snap.Count - 1; i++)
                     {
                         var p = snap[i];
                         Vector3 newSlot = layoutDir * ((i + 1) * spacing);
                         animations.Add(StartCoroutine(p.AnimateLocalTo(
-                            newSlot, p.RestRotation, shiftAndPopDuration, Easing.SmoothStep)));
+                            newSlot, p.RestRotation, TieShiftDuration(p.transform.localPosition, newSlot), Easing.SmoothStep)));
                     }
                     // Ejected → hand with bounce (reuses the same helper as the simple-move path).
                     if (ejected != null)
@@ -588,14 +606,15 @@ namespace Sort
                     // Non-clicked: bottom (= snap[last]) wraps to top with an arc.
                     var bottom = snap[snap.Count - 1];
                     animations.Add(StartCoroutine(bottom.AnimateLocalArcTo(
-                        Vector3.zero, bottom.RestRotation, heldToTopDuration, dropArcHeight, colUpLocal, Easing.SmoothStep)));
+                        Vector3.zero, bottom.RestRotation,
+                        TieShiftDuration(bottom.transform.localPosition, Vector3.zero), dropArcHeight, colUpLocal, Easing.SmoothStep)));
                     // Other pieces shift down 1 slot (same target math as clicked col's shifters).
                     for (int i = 0; i < snap.Count - 1; i++)
                     {
                         var p = snap[i];
                         Vector3 newSlot = layoutDir * ((i + 1) * spacing);
                         animations.Add(StartCoroutine(p.AnimateLocalTo(
-                            newSlot, p.RestRotation, shiftAndPopDuration, Easing.SmoothStep)));
+                            newSlot, p.RestRotation, TieShiftDuration(p.transform.localPosition, newSlot), Easing.SmoothStep)));
                     }
                 }
             }
@@ -631,6 +650,7 @@ namespace Sort
             // --- Fire crack+fade on each broken tie's visual, clear the refs ---
             if (brokenTies.Count > 0)
             {
+                SfxManager.Play(SfxId.TieBreak);
                 var allTies = FindObjectsByType<TieVisual>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
                 foreach (var (a, b) in brokenTies)
                 {
@@ -700,6 +720,13 @@ namespace Sort
         }
 
         /// <summary>
+        /// Duration for one tied-shift piece so every piece in the shift moves at the same column-local
+        /// speed: distance ÷ <see cref="tieShiftSpeed"/>, floored by <see cref="tieShiftMinDuration"/>.
+        /// </summary>
+        float TieShiftDuration(Vector3 fromLocal, Vector3 toLocal)
+            => Mathf.Max(tieShiftMinDuration, Vector3.Distance(fromLocal, toLocal) / Mathf.Max(0.01f, tieShiftSpeed));
+
+        /// <summary>
         /// Background celebration coroutine — does NOT block input. Waits the configured
         /// celebrationDelay then plays the column's per-piece hop+spin. Caller fires this
         /// with <c>StartCoroutine</c> (no <c>yield return</c>) to keep responsiveness up.
@@ -719,6 +746,7 @@ namespace Sort
         IEnumerator RunCelebration(Column col)
         {
             if (col == null) yield break;
+            SfxManager.Play(SfxId.ColumnComplete);
             yield return StartCoroutine(col.AnimateCelebration(
                 celebrationDuration, celebrationHopHeight, celebrationRotations * 360f));
         }
@@ -780,6 +808,7 @@ namespace Sort
         IEnumerator DoSwitchAnimated(Piece a, Column colA, Piece b, Column colB)
         {
             isAnimating = true;
+            SfxManager.Play(SfxId.Switch);
 
             int idxA = a.transform.GetSiblingIndex();
             int idxB = b.transform.GetSiblingIndex();
@@ -1002,6 +1031,7 @@ namespace Sort
         IEnumerator DoMagnetAnimated(MagnetPlan plan)
         {
             isAnimating = true;
+            SfxManager.Play(SfxId.Magnet);
 
             // --- 1. Reparent gathered & displaced pieces (worldPositionStays so visuals don't snap) ---
             foreach (var g in plan.gathered)
@@ -1189,6 +1219,8 @@ namespace Sort
             var topChild = lastMoveColumn.transform.GetChild(0);
             var topPiece = topChild != null ? topChild.GetComponent<Piece>() : null;
             if (topPiece == null) return;
+
+            SfxManager.Play(SfxId.Rewind);
 
             // 1. Unlock first so colliders re-enable and reparent works cleanly.
             if (lastMoveLockedColumn) lastMoveColumn.Unlock();

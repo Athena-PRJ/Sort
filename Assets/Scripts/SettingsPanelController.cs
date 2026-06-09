@@ -6,7 +6,8 @@ namespace Sort
     /// <summary>
     /// Controls the in-game Settings popup. Opened by the world-space Settings button;
     /// contains buttons that resume the game, restart the current level, or return to main menu.
-    /// Also hosts the Haptics on/off toggle (mobile vibration on tap).
+    /// Also hosts the Haptics on/off control (mobile vibration on tap) as a Button so it can carry
+    /// custom on/off Sprites.
     /// </summary>
     public class SettingsPanelController : MonoBehaviour
     {
@@ -17,10 +18,21 @@ namespace Sort
                  "Sort is turn-based so this is optional but feels nice.")]
         [SerializeField] private bool pauseTimeWhileOpen = false;
 
-        [Tooltip("Optional UI Toggle that turns mobile haptic feedback (vibration on tap) on/off. " +
-                 "Leave null if the Settings panel has no haptics toggle yet — the rest still works. " +
-                 "When wired, its state syncs with the saved Haptics.Enabled preference automatically.")]
-        [SerializeField] private Toggle hapticsToggle;
+        [Header("Haptics (mobile vibration)")]
+        [Tooltip("Optional Button that toggles haptic feedback on/off. Drag your haptics Button here and " +
+                 "it's wired automatically (no OnClick setup needed). Leave null if there's no haptics " +
+                 "button yet — everything else still works.")]
+        [SerializeField] private Button hapticsButton;
+
+        [Tooltip("Optional Image whose sprite swaps to show the current haptics state (the Button's own " +
+                 "Image, or a child icon). Leave null to skip the visual swap.")]
+        [SerializeField] private Image hapticsIcon;
+
+        [Tooltip("Sprite shown on Haptics Icon when haptics are ON.")]
+        [SerializeField] private Sprite hapticsOnSprite;
+
+        [Tooltip("Sprite shown on Haptics Icon when haptics are OFF.")]
+        [SerializeField] private Sprite hapticsOffSprite;
 
         public bool IsOpen => panel != null && panel.activeSelf;
 
@@ -28,27 +40,38 @@ namespace Sort
         {
             if (panel != null) panel.SetActive(false);
 
-            if (hapticsToggle != null)
-            {
-                hapticsToggle.SetIsOnWithoutNotify(Haptics.Enabled);
-                hapticsToggle.onValueChanged.AddListener(OnHapticsToggleChanged);
-            }
+            if (hapticsButton != null) hapticsButton.onClick.AddListener(ToggleHaptics);
+            RefreshHapticsVisual();
         }
 
         void OnDestroy()
         {
-            if (hapticsToggle != null) hapticsToggle.onValueChanged.RemoveListener(OnHapticsToggleChanged);
+            if (hapticsButton != null) hapticsButton.onClick.RemoveListener(ToggleHaptics);
         }
 
-        /// <summary>Wired to the haptics Toggle (and called automatically when its value changes).</summary>
-        public void OnHapticsToggleChanged(bool on) => Haptics.Enabled = on;
+        /// <summary>
+        /// Flips haptics on/off and updates the icon. Wired automatically to <see cref="hapticsButton"/>;
+        /// also public so a Button's OnClick can call it directly if you prefer manual wiring (don't do
+        /// both — that would toggle twice per press).
+        /// </summary>
+        public void ToggleHaptics()
+        {
+            Haptics.Enabled = !Haptics.Enabled;
+            RefreshHapticsVisual();
+        }
+
+        void RefreshHapticsVisual()
+        {
+            if (hapticsIcon == null) return;
+            var sprite = Haptics.Enabled ? hapticsOnSprite : hapticsOffSprite;
+            if (sprite != null) hapticsIcon.sprite = sprite;
+        }
 
         public void Open()
         {
             if (panel == null) return;
             panel.SetActive(true);
-            // Reflect the saved preference each time the panel opens (e.g. changed elsewhere).
-            if (hapticsToggle != null) hapticsToggle.SetIsOnWithoutNotify(Haptics.Enabled);
+            RefreshHapticsVisual(); // reflect the saved state each time the panel opens
             if (pauseTimeWhileOpen) Time.timeScale = 0f;
         }
 
