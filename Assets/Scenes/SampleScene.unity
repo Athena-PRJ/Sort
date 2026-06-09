@@ -348,8 +348,8 @@ MonoBehaviour:
   tickSizeFraction: 0.03
   indicatorSizeFraction: 0.05
   standardRowsForIconScale: 3
-  statusEdgeGapFraction: 0.015
-  outEdgeGapFraction: 0.05
+  statusEdgeGapFraction: 0.01
+  outEdgeGapFraction: 0.038
   liftFraction: 0.1
   statusIconOffset: {x: 0, y: -0.5, z: 0}
   columnSpacingOverride: 1.5
@@ -1642,12 +1642,12 @@ MonoBehaviour:
   shiftAndPopDuration: 0.4
   dropArcHeight: 1
   popArcHeight: 0.8
-  landBounceDuration: 0.5
+  landBounceDuration: 0.4
   landBounceOvershoot: 0.5
   celebrationDelay: 0.5
   maxQueuedClicks: 3
   celebrationDuration: 0.5
-  celebrationHopHeight: 0.7
+  celebrationHopHeight: 1.5
   celebrationRotations: 1
   switchFlightDuration: 0.4
   switchArcHeight: 4
@@ -1655,9 +1655,9 @@ MonoBehaviour:
   magnetArcHeight: 1
   magnetArcHeightSmall: 0.25
   magnetStaggerSeconds: 0.04
-  rainbowSinkDuration: 0.25
+  rainbowSinkDuration: 0.3
   tieShiftSpeed: 8
-  tieShiftMinDuration: 0.12
+  tieShiftMinDuration: 0.2
   tieBreakFadeDuration: 0.3
   revealHopDuration: 0.5
   revealHopHeight: 0.7

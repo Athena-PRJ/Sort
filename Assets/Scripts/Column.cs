@@ -408,17 +408,20 @@ namespace Sort
         }
 
         /// <summary>
-        /// Plays the column-complete celebration: every child piece hops up the column,
-        /// spins around world-Y, and lands back in slot. Runs all pieces in parallel.
-        /// All three knobs are designer-tunable from PlayerHand's celebration fields.
+        /// Plays the column-complete celebration: every child piece does an in-plane hop + a single
+        /// spin around its own forward axis, then lands back in slot — the SAME motion as the
+        /// Questionmark reveal hop. Runs all pieces in parallel. Knobs are on PlayerHand.
         /// </summary>
         public IEnumerator AnimateCelebration(float duration = 0.4f, float hopDistance = 0.6f, float totalRotationDegrees = 360f)
         {
-            // "Up the column" in local space is the reverse of layoutDirection (pieces stack downward by default).
-            Vector3 hopDirLocal = -layoutDirection.normalized;
-            // Vector3.zero = "let each piece use its own transform.up" — gives a clean spin around the
-            // piece's authored vertical instead of a fixed world axis. Avoids the pendulum wobble you'd
-            // see from forcing world Y through a piece that's tilted by board rotation.
+            // Hop straight UP (local +Y), IN the board plane — exactly like the reveal hop.
+            // Do NOT use -layoutDirection: this column's layoutDirection is (0,0,-1) (pieces stack along
+            // local Z because the board is tilted ≈90°), so -layoutDirection = local +Z = PERPENDICULAR to
+            // the board surface → the piece hops off the board and visibly clips THROUGH the MainBoard
+            // during the spin. Vector3.up keeps the hop in-plane, matching the reveal that looks correct.
+            Vector3 hopDirLocal = Vector3.up;
+            // Vector3.zero = spin around each piece's own forward axis (same as the reveal hop) — a clean
+            // in-plane rotation that does NOT pass through the board.
             Vector3 flipAxis = Vector3.zero;
 
             var anims = new List<Coroutine>();
