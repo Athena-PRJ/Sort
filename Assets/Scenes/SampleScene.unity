@@ -4558,16 +4558,22 @@ MonoBehaviour:
   scaleOverrides:
   - gridSize: {x: 5, y: 5}
     scaleMultiplier: 0
+    pieceScaleMultiplier: 0
+    mainBoardOffset: {x: 0, y: 0, z: 0}
     indicatorSizeMultiplier: 1.1
     indicatorStatusOffset: {x: 0, y: -5.5, z: 0}
     indicatorOutOffset: {x: 0, y: 1, z: 0}
   - gridSize: {x: 2, y: 2}
     scaleMultiplier: 0
+    pieceScaleMultiplier: 0
+    mainBoardOffset: {x: 0, y: 0, z: 0}
     indicatorSizeMultiplier: 0.9
     indicatorStatusOffset: {x: 0, y: 0.08, z: 0}
     indicatorOutOffset: {x: 0, y: -0.07, z: 0}
   - gridSize: {x: 2, y: 3}
-    scaleMultiplier: 0
+    scaleMultiplier: 1.1
+    pieceScaleMultiplier: 0
+    mainBoardOffset: {x: 0, y: 0, z: 0}
     indicatorSizeMultiplier: 0.9
     indicatorStatusOffset: {x: 0, y: 0.02, z: 0}
     indicatorOutOffset: {x: 0, y: -0.02, z: 0}
@@ -7004,7 +7010,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0.7071068, y: 0, z: 0, w: 0.7071068}
   m_LocalPosition: {x: 0, y: -0.1, z: 0}
-  m_LocalScale: {x: 0.23, y: 0.22, z: 0.5}
+  m_LocalScale: {x: 0.9, y: 0.9, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 1839211129}

@@ -59,10 +59,10 @@ namespace Sort
                  "Default (3, 3). Tune your scene at this grid size, then test other grids — auto-fit handles them.")]
         [SerializeField] private Vector2Int standardGrid = new Vector2Int(3, 3);
 
-        [Tooltip("Per-grid overrides (cols × rows). One entry fine-tunes everything for that grid: BOARD " +
-                 "scale (scaleMultiplier; ≤0 = keep area-preserving default), PIECE scale (pieceScaleMultiplier), " +
-                 "MainBoard position (mainBoardOffset), and the status / out INDICATOR size + offsets. " +
-                 "Changes apply live in Play mode. One entry per grid you want to tune.")]
+        [Tooltip("Per-grid overrides (cols × rows). One entry fine-tunes EVERYTHING for that grid: board " +
+                 "scale, MainBoard size + position, column spacing, piece spacing, piece scale, and the " +
+                 "status / out indicator size + offsets. Each multiplier ≤0 means 'no change'. All apply " +
+                 "live in Play mode. One entry per grid you want to tune.")]
         [SerializeField] private GridScaleOverride[] scaleOverrides = new GridScaleOverride[0];
 
         [Header("MainBoard")]
@@ -263,22 +263,32 @@ namespace Sort
             if (CurrentLevel == null) return;
 
             var pf = ResolvePiecePrefab(CurrentLevel);
-            // Re-apply the per-grid BOARD scale (scaleMultiplier) live — RefreshAlignment alone does NOT
-            // re-run auto-fit, which is why editing Scale Multiplier in Play mode previously did nothing.
-            // Safe to re-run: ApplyAutoFit computes from the authored scales captured once in Awake.
-            if (autoFit && pf != null) ApplyAutoFit(CurrentLevel, pf);
-            // Re-push piece baselines so the per-grid pieceScaleMultiplier updates live too.
-            if (pf != null && board != null)
-            {
-                var pieces = new System.Collections.Generic.List<Piece>();
-                board.GetComponentsInChildren(true, pieces);
-                for (int i = 0; i < pieces.Count; i++) ApplyRegistryPieceScale(pieces[i], pf);
-                if (playerHand != null && playerHand.HeldPiece != null)
-                    ApplyRegistryPieceScale(playerHand.HeldPiece, pf);
-            }
+            if (pf == null || board == null) { RefreshAlignment(); return; }
+
+            // Full live re-apply so EVERY per-grid override in scaleOverrides updates instantly while
+            // tuning in Play mode (RefreshAlignment alone only re-centers — it doesn't re-scale/space):
+            var cols = new System.Collections.Generic.List<Column>();
+            board.GetComponentsInChildren(true, cols);
+
+            // 1) Column + piece SPACING (per-grid columnSpacing / pieceSpacing multipliers).
+            ApplyPrefabSpacingOverride(pf);
+            ApplyPieceSpacingOverrideToColumns(pf, cols);
+
+            // 2) BOARD + MainBoard SIZE (scaleMultiplier + mainBoardSizeMultiplier). Runs after spacing so
+            //    the frame wraps the new spacing. Idempotent — authored scales captured once in Awake.
+            if (autoFit) ApplyAutoFit(CurrentLevel, pf);
+
+            // 3) PIECE size (per-grid pieceScaleMultiplier) — re-push baselines to every live piece.
+            var pieces = new System.Collections.Generic.List<Piece>();
+            board.GetComponentsInChildren(true, pieces);
+            for (int i = 0; i < pieces.Count; i++) ApplyRegistryPieceScale(pieces[i], pf);
+            if (playerHand != null && playerHand.HeldPiece != null)
+                ApplyRegistryPieceScale(playerHand.HeldPiece, pf);
+
+            // 4) Re-layout with the new spacing, re-align the frame + per-grid MainBoard offset, rebuild indicators.
+            board.Layout();
+            for (int i = 0; i < cols.Count; i++) if (cols[i] != null) cols[i].Layout();
             RefreshAlignment();
-            // Also rebuild the board indicators so per-grid override tweaks (board scale / indicator
-            // size / offsets in scaleOverrides) show up live while tuning in Play mode.
             var mbb = FindFirstObjectByType<MainBoardBuilder>();
             if (mbb != null) mbb.MarkDirty();
         }
@@ -326,15 +336,16 @@ namespace Sort
         void ApplyPrefabSpacingOverride(GameObject piecePrefab)
         {
             if (board == null) return;
-            if (TryGetSpacingOverride(piecePrefab, out var entry))
+            float colSpacing = TryGetSpacingOverride(piecePrefab, out var entry) ? entry.columnSpacing : 0f;
+            // Per-grid column-spacing multiplier from scaleOverrides.
+            if (colSpacing > 0f && CurrentLevel != null)
             {
-                board.SetRuntimeColumnSpacing(entry.columnSpacing);
+                GetGrid(CurrentLevel, out int gc, out int gr);
+                if (TryGetGridOverride(gc, gr, out var gov) && gov.columnSpacingMultiplier > 0f)
+                    colSpacing *= gov.columnSpacingMultiplier;
             }
-            else
-            {
-                // Clear any previous override so the authored value takes effect.
-                board.SetRuntimeColumnSpacing(0f);
-            }
+            // 0 = clear the override so Board's authored value takes effect.
+            board.SetRuntimeColumnSpacing(colSpacing);
         }
 
         /// <summary>
@@ -345,10 +356,18 @@ namespace Sort
         {
             if (columns == null || columns.Count == 0) return;
             bool found = TryGetSpacingOverride(piecePrefab, out var entry);
+            float pieceSpacing = found ? entry.pieceSpacing : 0f;
+            // Per-grid piece-spacing multiplier from scaleOverrides.
+            if (pieceSpacing > 0f && CurrentLevel != null)
+            {
+                GetGrid(CurrentLevel, out int gc, out int gr);
+                if (TryGetGridOverride(gc, gr, out var gov) && gov.pieceSpacingMultiplier > 0f)
+                    pieceSpacing *= gov.pieceSpacingMultiplier;
+            }
             for (int i = 0; i < columns.Count; i++)
             {
                 if (columns[i] == null) continue;
-                columns[i].SetRuntimePieceSpacing(found ? entry.pieceSpacing : 0f);
+                columns[i].SetRuntimePieceSpacing(pieceSpacing); // 0 = clear → authored value
             }
         }
 
@@ -620,6 +639,9 @@ namespace Sort
                 if (ov.mainBoardScaleAdjust > 0f)  mainBoardAdjust  = ov.mainBoardScaleAdjust;
                 if (ov.handAnchorScaleAdjust > 0f) handAnchorAdjust = ov.handAnchorScaleAdjust;
             }
+            // Per-grid MainBoard SIZE multiplier (from scaleOverrides) folds into mainBoardAdjust.
+            if (TryGetGridOverride(cols, rowsMax, out var gov) && gov.mainBoardSizeMultiplier > 0f)
+                mainBoardAdjust *= gov.mainBoardSizeMultiplier;
 
             // Board.transform scale = authored × F. All children inherit (columns, pieces, MainBoard).
             board.transform.localScale = authoredBoardScale * scale;
@@ -740,6 +762,18 @@ namespace Sort
         [Tooltip("Extra WORLD-space offset that MOVES the MainBoard (and its attached indicators) for this " +
                  "grid, on top of the auto-centering on the column grid. Use to nudge the board into place.")]
         public Vector3 mainBoardOffset;
+
+        [Tooltip("MainBoard SIZE multiplier for this grid — scales the board image itself (it still wraps " +
+                 "the grid; this scales it up / down on top). ≤ 0 = 1 (no change).")]
+        public float mainBoardSizeMultiplier;
+
+        [Tooltip("COLUMN spacing multiplier for this grid — multiplies the horizontal gap between columns " +
+                 "(the board frame re-wraps to fit). ≤ 0 = 1 (no change).")]
+        public float columnSpacingMultiplier;
+
+        [Tooltip("PIECE spacing multiplier for this grid — multiplies the vertical gap between stacked " +
+                 "pieces in a column (the board frame re-wraps to fit). ≤ 0 = 1 (no change).")]
+        public float pieceSpacingMultiplier;
 
         [Tooltip("INDICATOR: multiplies ALL status / out / tick icon sizes for this grid (on top of the auto " +
                  "row-compensation). ≤ 0 = 1 (no change).")]
