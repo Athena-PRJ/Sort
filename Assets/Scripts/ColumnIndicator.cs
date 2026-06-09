@@ -3,24 +3,22 @@ using UnityEngine;
 namespace Sort
 {
     /// <summary>
-    /// Per-column status indicator. While unsolved it shows the 'not-done' sprite. When the column
-    /// locks it swaps the base sprite to 'done' (same size) and shows a tick overlay on top.
+    /// Per-column status indicator. The Done sprite is the always-visible FRAME (the slot); the not-done
+    /// icon sits INSIDE it while the column is unsolved, and is swapped for the tick once the column locks.
+    /// MainBoardBuilder spawns the frame plus the two inner icons (as separate sprites at the same spot)
+    /// and wires this component up with the two inner GameObjects. The frame itself is never toggled.
     /// </summary>
     public class ColumnIndicator : MonoBehaviour
     {
         Column column;
-        SpriteRenderer baseRenderer;
-        Sprite notDoneSprite;
-        Sprite doneSprite;
+        GameObject notDoneObject;
         GameObject tickObject;
 
-        public void Setup(Column col, SpriteRenderer baseSr, Sprite notDone, Sprite done, GameObject tick)
+        public void Setup(Column col, GameObject notDoneObj, GameObject tickObj)
         {
             column = col;
-            baseRenderer = baseSr;
-            notDoneSprite = notDone;
-            doneSprite = done;
-            tickObject = tick;
+            notDoneObject = notDoneObj;
+            tickObject = tickObj;
 
             if (column != null) column.Locked += OnLocked;
             Refresh();
@@ -31,7 +29,7 @@ namespace Sort
         void Refresh()
         {
             bool done = column != null && column.IsLocked;
-            if (baseRenderer != null) baseRenderer.sprite = done ? doneSprite : notDoneSprite;
+            if (notDoneObject != null) notDoneObject.SetActive(!done);
             if (tickObject != null) tickObject.SetActive(done);
         }
 

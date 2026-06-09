@@ -24,11 +24,16 @@ namespace Sort
         [SerializeField] private Vector3 indicatorRotation = new Vector3(85f, 0f, 0f);
 
         [Header("Size — fraction of the board's height (auto-scales per grid)")]
-        [Tooltip("Status + out icon size as a fraction of the board's height. ~0.05 ≈ the old 0.5 scale on " +
-                 "the standard board, but now it shrinks/grows with the board automatically.")]
-        [SerializeField] private float indicatorSizeFraction = 0.05f;
-        [Tooltip("Tick overlay size as a fraction of the board's height (usually a bit smaller than the icon).")]
+        [Tooltip("DONE-frame size (the status slot). This frame is ALWAYS shown and is the container the " +
+                 "not-done icon and the tick sit inside. Bumped up a touch from the old 0.05.")]
+        [SerializeField] private float doneSizeFraction = 0.06f;
+        [Tooltip("Inner NOT-DONE icon size — sits INSIDE the done frame while the column is unsolved. " +
+                 "Keep ≤ Done Size Fraction so it fits within the frame.")]
+        [SerializeField] private float notDoneSizeFraction = 0.045f;
+        [Tooltip("Inner TICK icon size — sits inside the done frame once the column is solved.")]
         [SerializeField] private float tickSizeFraction = 0.03f;
+        [Tooltip("Bottom OUT arrow size as a fraction of the board's height.")]
+        [SerializeField] private float indicatorSizeFraction = 0.05f;
 
         [Header("Placement — fractions of board height (auto-adapt per grid)")]
         [Tooltip("Gap of the TOP status icon from the board's top edge, as a fraction of board height. " +
@@ -40,6 +45,10 @@ namespace Sort
         [Tooltip("How far the icons lift toward the camera (Board-local Y) so they render in front of the " +
                  "board, as a fraction of board height. Small positive (~0.1) is plenty.")]
         [SerializeField] private float liftFraction = 0.1f;
+        [Tooltip("Manual position nudge for the DONE status frame, in Board-local units (type values here): " +
+                 "X = sideways, Y = toward the camera, Z = along the tilted board (up/down). Lets you fine-" +
+                 "tune the slot's placement on top of the auto-computed position.")]
+        [SerializeField] private Vector3 statusIconOffset = Vector3.zero;
 
         [Header("Column spacing")]
         [Tooltip("Horizontal spacing between indicators (column → column). 0 = AUTO: matches " +
@@ -104,8 +113,10 @@ namespace Sort
             float statusZ = topEdgeZ + boardExtentZ * statusEdgeGapFraction;
             float outZ    = botEdgeZ - boardExtentZ * outEdgeGapFraction;
             float lift    = boardExtentZ * liftFraction;
-            float iconScale = boardExtentZ * indicatorSizeFraction;
-            float tickS     = boardExtentZ * tickSizeFraction;
+            float doneScale    = boardExtentZ * doneSizeFraction;
+            float notDoneScale = boardExtentZ * notDoneSizeFraction;
+            float tickS        = boardExtentZ * tickSizeFraction;
+            float outScale     = boardExtentZ * indicatorSizeFraction;
 
             float leftX = -((cols - 1) * cellWidth) * 0.5f;
             Quaternion rot = Quaternion.Euler(indicatorRotation);
@@ -114,12 +125,21 @@ namespace Sort
             {
                 float x = leftX + c * cellWidth;
 
-                // Top status: not-done base (+ optional tick), driven by ColumnIndicator (swaps to done + tick on lock).
-                if (level.notDoneSprite != null)
+                // Top status: the DONE sprite is the always-visible FRAME (the slot). The not-done icon
+                // sits INSIDE it while the column is unsolved; on lock ColumnIndicator hides not-done and
+                // shows the tick. The inner icons share the frame's position so they read as "inside" it.
+                Sprite frameSprite = level.doneSprite != null ? level.doneSprite : level.notDoneSprite;
+                if (frameSprite != null)
                 {
-                    var sPos = new Vector3(x, lift, statusZ);
-                    var baseGO = Spawn(level.notDoneSprite, sPos, rot, new Vector3(iconScale, iconScale, 1f), indicatorSortingOrder);
+                    var sPos = new Vector3(x, lift, statusZ) + statusIconOffset;
+                    var frameGO = Spawn(frameSprite, sPos, rot, new Vector3(doneScale, doneScale, 1f), indicatorSortingOrder);
 
+                    // Inner not-done — only when there's a distinct done frame for it to sit inside.
+                    GameObject notDoneGO = null;
+                    if (level.doneSprite != null && level.notDoneSprite != null)
+                        notDoneGO = Spawn(level.notDoneSprite, sPos, rot, new Vector3(notDoneScale, notDoneScale, 1f), indicatorSortingOrder + 1);
+
+                    // Inner tick (shown on lock).
                     GameObject tickGO = null;
                     if (level.tickSprite != null)
                     {
@@ -127,16 +147,16 @@ namespace Sort
                         tickGO.SetActive(false);
                     }
 
-                    var ind = baseGO.AddComponent<ColumnIndicator>();
+                    var ind = frameGO.AddComponent<ColumnIndicator>();
                     Column col = (columns != null && c < columns.Count) ? columns[c] : null;
-                    ind.Setup(col, baseGO.GetComponent<SpriteRenderer>(), level.notDoneSprite, level.doneSprite, tickGO);
+                    ind.Setup(col, notDoneGO, tickGO);
                 }
 
                 // Bottom out arrow.
                 if (level.outSprite != null)
                 {
                     var oPos = new Vector3(x, lift, outZ);
-                    Spawn(level.outSprite, oPos, rot, new Vector3(iconScale, iconScale, 1f), indicatorSortingOrder);
+                    Spawn(level.outSprite, oPos, rot, new Vector3(outScale, outScale, 1f), indicatorSortingOrder);
                 }
             }
         }

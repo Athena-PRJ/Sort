@@ -896,9 +896,10 @@ namespace Sort
             if (col.IsFrozen) return;
             if (piece.IsRainbow) return;                       // No color to gather.
             if (piece.IsQuestionmark && !piece.IsRevealed) return;
-            // Tied pieces are immune to Magnet — gathering one half across columns would either drag
-            // its partner along (incoherent visuals) or silently break the tie (player surprise).
-            if (piece.IsTied) return;
+            // Tied columns are OFF-LIMITS to Magnet (same as frozen): gathering INTO or pulling FROM a
+            // column that has an active tie would drag a tied piece across columns / disturb the tie —
+            // a visible bug. Block the whole clicked column, not just the case where the tapped piece is tied.
+            if (col.HasActiveTie()) return;
 
             // Compute the plan BEFORE spending coins so we can refuse no-op magnets
             // (e.g. the clicked color only exists in the target column already).
@@ -957,6 +958,7 @@ namespace Sort
                 var c = allCols[ci];
                 if (c == null || c.IsLocked) continue;
                 if (c.IsFrozen) continue;
+                if (c.HasActiveTie()) continue;   // tied columns are off-limits — never gather from / displace into a tie
                 int slot = 0;
                 for (int i = 0; i < c.transform.childCount; i++)
                 {

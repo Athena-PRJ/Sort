@@ -1,0 +1,1 @@
+Just drag and drop the prefabs into your scene. Enjoy!
