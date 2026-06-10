@@ -487,7 +487,7 @@ namespace Sort
         /// gathering. Pass a NEGATIVE arcHeight to bow in the opposite direction (handy for crossover
         /// pairs that need to avoid colliding).
         /// </summary>
-        public IEnumerator AnimateLocalArcTo(Vector3 targetLocalPos, Quaternion targetLocalRot, float duration, float arcHeight, Vector3 arcAxisLocal, Func<float, float> ease)
+        public IEnumerator AnimateLocalArcTo(Vector3 targetLocalPos, Quaternion targetLocalRot, float duration, float arcHeight, Vector3 arcAxisLocal, Func<float, float> ease, bool emitTrail = false)
         {
             if (duration <= 0f || !gameObject.activeInHierarchy)
             {
@@ -496,11 +496,10 @@ namespace Sort
                 yield break;
             }
 
-            // Trail ON for the duration of the arc — racing-game-style motion blur behind the piece.
-            // Toggled here (not at the callsite) so EVERY arc motion (drop, pop, switch, magnet)
-            // automatically gets the trail. AnimateLocalTo intentionally does NOT toggle so straight-
-            // line shifters and rainbow sinks stay clean.
-            SetTrailEmitting(true);
+            // Trail ONLY when the caller opts in (emitTrail). Currently just the held-piece DROP
+            // (PlayerHand → Board) passes true; the pop (Board → hand), Switch, Magnet and tied wraps
+            // leave it off. AnimateLocalTo never trails either, so shifters / rainbow sinks stay clean.
+            if (emitTrail) SetTrailEmitting(true);
 
             Vector3 startPos = transform.localPosition;
             Quaternion startRot = transform.localRotation;
@@ -522,7 +521,7 @@ namespace Sort
             transform.localRotation = targetLocalRot;
 
             // Stop emitting — existing tail fades over TrailRenderer.time for a natural decay.
-            SetTrailEmitting(false);
+            if (emitTrail) SetTrailEmitting(false);
         }
 
         /// <summary>

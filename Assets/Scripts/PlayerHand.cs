@@ -446,7 +446,7 @@ namespace Sort
             // and avoids visually clipping through nearby pieces/frame on its way up.
             Vector3 colUpLocal = -col.LayoutDirection.normalized;
             animations.Add(StartCoroutine(toInsert.AnimateLocalArcTo(
-                Vector3.zero, toInsert.RestRotation, heldToTopDuration, dropArcHeight, colUpLocal, Easing.SmoothStep)));
+                Vector3.zero, toInsert.RestRotation, heldToTopDuration, dropArcHeight, colUpLocal, Easing.SmoothStep, emitTrail: true)));
 
             // Every piece except the ejected one shifts down one slot — keep STRAIGHT line because
             // they move only 1 piece-slot's worth of distance, an arc here would look unnecessarily
@@ -588,7 +588,7 @@ namespace Sort
                     if (toInsert != null)
                         animations.Add(StartCoroutine(toInsert.AnimateLocalArcTo(
                             Vector3.zero, toInsert.RestRotation,
-                            TieShiftDuration(toInsert.transform.localPosition, Vector3.zero), dropArcHeight, colUpLocal, Easing.SmoothStep)));
+                            TieShiftDuration(toInsert.transform.localPosition, Vector3.zero), dropArcHeight, colUpLocal, Easing.SmoothStep, emitTrail: true)));
                     // Shifters: snap[0..n-2] → slot i+1.
                     for (int i = 0; i < snap.Count - 1; i++)
                     {
