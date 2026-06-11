@@ -16,13 +16,13 @@ MonoBehaviour:
   difficulty: 0
   piecePrefab: {fileID: 8595755308906869233, guid: dfdf8c852b0e5104184c4e0f60f2ebb9, type: 3}
   paletteStyle: 0
-  mainBoardSprite: {fileID: 3286163911610860551, guid: 415bea05b4432974abb3d749add49ab3, type: 3}
-  backgroundSprite: {fileID: 21300000, guid: 4e14f3cb640aca44ea39a0c88b21255f, type: 3}
-  outSprite: {fileID: 3286163911610860551, guid: 6fdc76b67fa7cff42b56568bf5f6949a, type: 3}
-  placeSprite: {fileID: 3286163911610860551, guid: d5ebbd75bea664a4fbf7cb1a36183d4a, type: 3}
-  notDoneSprite: {fileID: 3286163911610860551, guid: c3440aec7d489ef4aaee70611c48d8d2, type: 3}
+  mainBoardSprite: {fileID: 3286163911610860551, guid: 2b613ed660ad7d9499beeaf36598e242, type: 3}
+  backgroundSprite: {fileID: 3286163911610860551, guid: f46ac08a25209b44bbc3e7ca6543c9f4, type: 3}
+  outSprite: {fileID: 3286163911610860551, guid: 9b5822faff1a9584cb26e209a1f188d5, type: 3}
+  placeSprite: {fileID: 3286163911610860551, guid: f8456c2ba8063a7488bbb1e41cb8b3f9, type: 3}
+  notDoneSprite: {fileID: 3286163911610860551, guid: 32738118367467f4eaa7b8871cb38864, type: 3}
   doneSprite: {fileID: 3286163911610860551, guid: 0e76e7708c1fe6e46885085b8cbb20fc, type: 3}
-  tickSprite: {fileID: 3286163911610860551, guid: 8470cefae9c15c847b6e1fe7514c88a7, type: 3}
+  tickSprite: {fileID: 3286163911610860551, guid: 3ce02edf8c4000b4484c4d28e94fe4e0, type: 3}
   moveLimit: 18
   startingHeldPiece:
     color: Blue

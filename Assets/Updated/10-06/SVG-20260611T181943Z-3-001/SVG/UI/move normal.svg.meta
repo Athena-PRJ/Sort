@@ -1,5 +1,5 @@
 fileFormatVersion: 2
-guid: 0e76e7708c1fe6e46885085b8cbb20fc
+guid: 2d6908dcf33559f4182a50d17ca289ff
 ScriptedImporter:
   internalIDToNameTable: []
   externalObjects: {}
@@ -39,7 +39,7 @@ ScriptedImporter:
   useSVGPixelsPerUnit: 0
   spriteData:
     TessellationDetail: 0
-    SpriteName: done
+    SpriteName: move normal
     SpritePivot: {x: 0.5, y: 0.5}
     SpriteAlignment: 0
     SpriteBorder: {x: 0, y: 0, z: 0, w: 0}
@@ -48,6 +48,6 @@ ScriptedImporter:
       x: 0
       y: 0
       width: 256
-      height: 112
-    SpriteID: a9de6a327957f644a90f503aac0a5a01
+      height: 145
+    SpriteID: e7196fa7ac37c3d4cafb4c3392367bda
     PhysicsOutlines: []
