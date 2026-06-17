@@ -31,11 +31,12 @@ namespace Sort
             if (image == null) image = GetComponent<Image>();
             if (image == null) return;
 
+            // Per-theme background sprite (LevelData.themeSet.backgroundSprite). If the theme provides one,
+            // use it; else keep the scene sprite; else fall back. Each theme ships its own finished background.
             var loader = LevelLoader.Instance;
-            Sprite chosen = loader != null && loader.CurrentLevel != null ? loader.CurrentLevel.backgroundSprite : null;
-            if (chosen == null) chosen = fallbackSprite;
-
+            Sprite chosen = loader != null && loader.CurrentLevel != null ? loader.CurrentLevel.BackgroundSprite : null;
             if (chosen != null) image.sprite = chosen;
+            else if (image.sprite == null && fallbackSprite != null) image.sprite = fallbackSprite;
         }
     }
 }

@@ -53,6 +53,13 @@ namespace Sort
                  "Column.pieceSpacing, and piece prefab scales are used as-is for every level.")]
         [SerializeField] private bool autoFit = true;
 
+        [Tooltip("Independent of Auto Fit: auto-sizes the MainBoard FRAME to WRAP each level's grid " +
+                 "(width = cols×ColumnSpacing, height = rows×PieceSpacing, × Main Board Grid Padding). " +
+                 "Turn this ON while Auto Fit is OFF to get a board that hugs every grid automatically — " +
+                 "WITHOUT the global uniform scaling that resizes the pieces/hand. Per-grid fine-tuning " +
+                 "(scaleOverrides.mainBoardSizeMultiplier) still applies on top. Needs the board sprite assigned.")]
+        [SerializeField] private bool autoSizeBoardToGrid = true;
+
         [Tooltip("The 'standard' grid size at which Board.columnSpacing, Column.pieceSpacing, and " +
                  "piece prefab scales were authored. The algorithm uses this as the baseline; for " +
                  "other grids it applies a uniform scale multiplier to keep total board area constant.\n\n" +
@@ -83,6 +90,13 @@ namespace Sort
                  "this handle alignment automatically.")]
         [SerializeField] private bool autoAlignBoardFrameToColumns = true;
 
+        [Tooltip("Pushes the board AWAY from the camera by this many world units AFTER it's aligned to the " +
+                 "grid. Use it when the board faces the camera (not coplanar with the tilted pieces): the " +
+                 "board otherwise sits at mid-grid depth and hides the FAR (top) row. Increase until the top " +
+                 "row reappears — the board becomes a flat backdrop behind ALL pieces while staying centered " +
+                 "on the grid (works WITH Auto Align). 0 = no push. Live-tunable in Play mode.")]
+        [SerializeField] private float boardCameraPush = 0f;
+
         [Header("Background")]
         [Tooltip("Optional reference to the BackgroundFrame component on the Background GameObject (child of Canvas). " +
                  "If left null, LevelLoader auto-finds one via FindAnyObjectByType at runtime.")]
@@ -99,6 +113,14 @@ namespace Sort
         Vector3 authoredBoardScale = Vector3.one;
         Vector3 authoredHandScale = Vector3.one;
         Vector3 authoredMainBoardScale = Vector3.one;
+        // Authored Board position — the per-grid/per-prefab "Main Board Offset" shifts the WHOLE assembly
+        // (board + columns + pieces) relative to this, so they move together. Captured once in Awake.
+        Vector3 authoredBoardPosition = Vector3.zero;
+        bool authoredBoardPositionCaptured;
+        // Authored HandAnchor position — the per-grid "Player Hand Offset" shifts the whole hand
+        // (held piece + placemat) relative to this. Captured once in Awake.
+        Vector3 authoredHandAnchorPosition = Vector3.zero;
+        bool authoredHandAnchorCaptured;
 
         // heldPieceExtraOffset is pushed straight to PlayerHand.HeldPieceLocalOffset (no authored
         // baseline needed — the held piece's "home" is localPosition=offset).
@@ -107,9 +129,18 @@ namespace Sort
         {
             Instance = this;
 
-            if (board != null) authoredBoardScale = board.transform.localScale;
+            if (board != null)
+            {
+                authoredBoardScale = board.transform.localScale;
+                authoredBoardPosition = board.transform.localPosition;
+                authoredBoardPositionCaptured = true;
+            }
             if (playerHand != null && playerHand.HandAnchor != null)
+            {
                 authoredHandScale = playerHand.HandAnchor.localScale;
+                authoredHandAnchorPosition = playerHand.HandAnchor.localPosition;
+                authoredHandAnchorCaptured = true;
+            }
 
             // Find BoardFrame (auto-discover) so we can capture MainBoard's authored scale too.
             if (boardFrame == null && board != null) boardFrame = board.GetComponentInChildren<BoardFrame>(true);
@@ -144,9 +175,31 @@ namespace Sort
             CurrentLevel = data;
             ClearBoard();
 
-            // Apply per-level background. Auto-discover if not wired.
+            // Board/background art is fixed in the scene now; BackgroundFrame.Apply only fills a fallback
+            // if nothing is assigned. (Auto-discover so the call is harmless if not wired.)
             if (backgroundFrame == null) backgroundFrame = FindAnyObjectByType<BackgroundFrame>(FindObjectsInactive.Include);
             if (backgroundFrame != null) backgroundFrame.Apply();
+
+            // Refresh per-level UI radiants (badges, SkillBar, etc.) so they pull this level's theme COLORS.
+            // This — not sprite swapping — is how levels differ visually now.
+            var radiants = FindObjectsByType<UiRadiantTint>(FindObjectsInactive.Include);
+            for (int i = 0; i < radiants.Length; i++)
+                if (radiants[i] != null) radiants[i].Apply();
+
+            // Same for world-space radiants (board frame / placemat SpriteRenderers).
+            // Only DISABLED-respecting: a SpriteRadiantTint whose checkbox is off (e.g. MainBoard, which
+            // now ships a finished per-theme sprite via BoardFrame instead of being recolored) must NOT
+            // be re-applied — otherwise its flat-replace material would override the theme sprite's colors.
+            var spriteRadiants = FindObjectsByType<SpriteRadiantTint>(FindObjectsInactive.Include);
+            for (int i = 0; i < spriteRadiants.Length; i++)
+                if (spriteRadiants[i] != null && spriteRadiants[i].isActiveAndEnabled) spriteRadiants[i].Apply();
+
+            // Per-theme finished SPRITES (You Failed / Out of Moves / Win panel art per difficulty).
+            // Inactive panels also refresh when shown (ThemedSprite.OnEnable), so this just covers any
+            // themed element already visible at load.
+            var themed = FindObjectsByType<ThemedSprite>(FindObjectsInactive.Include);
+            for (int i = 0; i < themed.Length; i++)
+                if (themed[i] != null) themed[i].Apply();
 
             // Apply per-prefab spacing override BEFORE spawning columns so the layout uses the
             // right spacing from the start. Look up the override matching this level's prefab;
@@ -210,8 +263,8 @@ namespace Sort
                 ApplyRegistryPieceScale(held, piecePrefab);
             }
             playerHand.SetHeldPiece(held);
-            // Themed placemat under the held piece (LevelData.placeSprite). Null = keep prefab default.
-            playerHand.SetPlaceSprite(data.placeSprite);
+            // Placemat art is fixed in the scene now (recolored via UiRadiantTint if needed) — no per-level
+            // sprite swap. The held piece sits over it via HandAnchorFollowUI when the placemat is UI.
 
             if (autoFit) ApplyAutoFit(data, piecePrefab);
 
@@ -240,18 +293,53 @@ namespace Sort
             board.GetComponentsInChildren(true, cols);
 
             bool hasOv = TryGetSpacingOverride(piecePrefab, out var ov);
-            Vector3 mbOff = hasOv ? ov.mainBoardExtraOffset : Vector3.zero;
+            Vector3 assemblyOffset = hasOv ? ov.mainBoardExtraOffset : Vector3.zero;
             Vector3 piOff = hasOv ? ov.heldPieceExtraOffset : Vector3.zero;
 
-            // Per-grid MainBoard nudge from scaleOverrides — lets you move the board (and its attached
-            // indicators) to align better for a specific grid, on top of the per-prefab offset.
+            // Per-grid "Main Board Offset" from scaleOverrides, on top of the per-prefab offset.
             GetGrid(CurrentLevel, out int gc, out int gr);
-            if (TryGetGridOverride(gc, gr, out var gov)) mbOff += gov.mainBoardOffset;
+            if (TryGetGridOverride(gc, gr, out var gov)) assemblyOffset += gov.mainBoardOffset;
 
-            if (autoAlignBoardFrameToColumns) AlignBoardFrameToColumns(cols, mbOff);
+            // Move the WHOLE assembly (board + columns + pieces) by the offset — applied to the BOARD
+            // transform, so the columns/pieces (its children) MOVE WITH the board and stay aligned. Each
+            // Override level can position the board where it looks best and the pieces follow. Relative to
+            // the authored position → idempotent (re-running converges to authoredPosition + offset).
+            if (authoredBoardPositionCaptured)
+                board.transform.localPosition = authoredBoardPosition + assemblyOffset;
+
+            // Auto-size the board frame to wrap THIS grid first (so its bounds are correct before we
+            // center it below). Runs independently of Auto Fit — see autoSizeBoardToGrid.
+            if (autoSizeBoardToGrid) SizeBoardFrameToGrid();
+
+            // Board-FRAME-only depth push: shifts JUST the frame away from the camera so a camera-facing
+            // board sits BEHIND the pieces (purely a render-depth nudge — does NOT move the pieces).
+            Vector3 frameOffset = Vector3.zero;
+            if (Mathf.Abs(boardCameraPush) > 1e-4f)
+            {
+                var cam = Camera.main;
+                if (cam != null) frameOffset = cam.transform.forward * boardCameraPush;
+            }
+
+            // Per-grid FRAME-ONLY offset: shifts JUST the board frame relative to the pieces (pieces stay
+            // put). gc/gr were computed above. This is the "nudge only the MainBoard up a bit, keep the
+            // columns" knob — distinct from mainBoardOffset (which moves the whole assembly together).
+            if (TryGetGridOverride(gc, gr, out var fgov)) frameOffset += fgov.mainBoardFrameOffset;
+
+            // Center the board frame on the (now-moved) grid + the depth push + the frame-only offset.
+            // The grid centroid already reflects the assembly move above, so the frame lands on the pieces
+            // (then shifts by frameOffset).
+            if (autoAlignBoardFrameToColumns) AlignBoardFrameToColumns(cols, frameOffset);
 
             if (playerHand != null)
                 playerHand.HeldPieceLocalOffset = piOff;
+
+            // Per-grid PlayerHand offset: move the WHOLE hand (held piece + placemat) via HandAnchor,
+            // relative to its authored position → idempotent. gc/gr computed above.
+            if (authoredHandAnchorCaptured && playerHand != null && playerHand.HandAnchor != null)
+            {
+                Vector3 handOff = TryGetGridOverride(gc, gr, out var hgov) ? hgov.playerHandOffset : Vector3.zero;
+                playerHand.HandAnchor.localPosition = authoredHandAnchorPosition + handOff;
+            }
         }
 
         void OnValidate()
@@ -459,24 +547,36 @@ namespace Sort
                     var col = cols[cfg.columnIndex];
                     if (col == null) continue;
 
+                    // Frozen = COUNT mode: breaks when X (unlockThreshold) ANY columns are completed.
                     col.Freeze(cfg.unlockThreshold);
                     SpawnFrozenOverlay(col, cfg.unlockThreshold);
                 }
             }
 
-            // --- Lock Color Stack (per-column tick on ColumnConfig; index aligns with cols) ---
+            // --- Per-column gates on ColumnConfig (index aligns with cols): Break Wall Stack + Lock Color Stack ---
             if (data.columns != null)
             {
                 int n = Mathf.Min(data.columns.Length, cols.Count);
                 for (int i = 0; i < n; i++)
                 {
                     var cc = data.columns[i];
-                    if (cc == null || !cc.lockColorStack) continue;
+                    if (cc == null) continue;
                     var col = cols[i];
                     if (col == null) continue;
 
-                    col.Freeze(cc.lockColorUnlockThreshold, true, cc.requiredColor);
-                    SpawnFrozenOverlay(col, cc.lockColorUnlockThreshold);
+                    if (cc.breakWallStack)
+                    {
+                        // Break Wall Stack = NEIGHBOR mode: breaks when its left+right neighbors complete.
+                        col.FreezeNeighbors();
+                        // Initial overlay number = how many existing neighbors (interior 2, edge 1) — none locked yet.
+                        int neighborCount = (i > 0 ? 1 : 0) + (i < cols.Count - 1 ? 1 : 0);
+                        SpawnFrozenOverlay(col, neighborCount);
+                    }
+                    else if (cc.lockColorStack)
+                    {
+                        col.Freeze(cc.lockColorUnlockThreshold, true, cc.requiredColor);
+                        SpawnFrozenOverlay(col, cc.lockColorUnlockThreshold);
+                    }
                 }
             }
         }
@@ -631,53 +731,83 @@ namespace Sort
 
             float scale = ComputeScaleMultiplier(cols, rowsMax);
 
-            // Look up per-prefab adjusts (default to 1.0 if no entry / non-positive value).
-            float mainBoardAdjust = 1f;
+            // Per-prefab HandAnchor scale adjust (MainBoard's adjust now lives in SizeBoardFrameToGrid).
             float handAnchorAdjust = 1f;
-            if (TryGetSpacingOverride(piecePrefab, out var ov))
-            {
-                if (ov.mainBoardScaleAdjust > 0f)  mainBoardAdjust  = ov.mainBoardScaleAdjust;
-                if (ov.handAnchorScaleAdjust > 0f) handAnchorAdjust = ov.handAnchorScaleAdjust;
-            }
-            // Per-grid MainBoard SIZE multiplier (from scaleOverrides) folds into mainBoardAdjust.
-            if (TryGetGridOverride(cols, rowsMax, out var gov) && gov.mainBoardSizeMultiplier > 0f)
-                mainBoardAdjust *= gov.mainBoardSizeMultiplier;
+            if (TryGetSpacingOverride(piecePrefab, out var ov) && ov.handAnchorScaleAdjust > 0f)
+                handAnchorAdjust = ov.handAnchorScaleAdjust;
 
             // Board.transform scale = authored × F. All children inherit (columns, pieces, MainBoard).
             board.transform.localScale = authoredBoardScale * scale;
 
-            // MainBoard image: deterministically size it to WRAP the grid. Work in Board-LOCAL units so
-            // the uniform F cancels out (boardFrame is a child of Board): the board sprite's local size =
-            // (cols×ColumnSpacing) × (rows×PieceSpacing) × mainBoardGridPadding, divided by the sprite's
-            // native bounds. Fits ANY grid by construction — no per-grid heuristic. (z keeps authored depth.)
-            if (boardFrame == null && board != null)
-                boardFrame = board.GetComponentInChildren<BoardFrame>(true);
-            if (boardFrame != null)
+            // MainBoard frame WRAP (size it to the grid) now lives in SizeBoardFrameToGrid(), run from
+            // RefreshAlignment and gated by autoSizeBoardToGrid — so the board can auto-fit each grid even
+            // when this global Auto Fit (F) is OFF. (Kept separate so they're independent knobs.)
+
+            // HandAnchor scale AUTO-MATCHES the board pieces so the held piece is the same world size as a
+            // piece on the board — it won't resize when it drops onto a column, at ANY grid/scale. A board
+            // piece sits under a Column (under Board), so its world scale = the Column's lossyScale; we set
+            // HandAnchor's world scale to that × handAnchorAdjust (use ~0.95 to make the held piece a touch
+            // smaller). No dependency on the authored hand scale, so no manual matching. Falls back to the
+            // old authored×F formula only if no column has spawned yet.
+            if (playerHand != null && playerHand.HandAnchor != null)
             {
-                boardFrame.Apply(); // assign the sprite first so its native bounds are valid below
-                var sr = boardFrame.GetComponent<SpriteRenderer>();
-                float pieceSpacing = FirstColumnPieceSpacing();
-                Vector3 mbScale = authoredMainBoardScale; // keeps authored z (depth)
-                if (sr != null && sr.sprite != null && pieceSpacing > 0f)
+                var ha = playerHand.HandAnchor;
+                var refCol = board.GetComponentInChildren<Column>(true);
+                if (refCol != null)
                 {
-                    Vector3 spriteSize = sr.sprite.bounds.size;
-                    float gridLocalW = cols    * board.ColumnSpacing;
-                    float gridLocalH = rowsMax * pieceSpacing;
-                    if (spriteSize.x > 1e-4f) mbScale.x = (gridLocalW * mainBoardGridPadding) / spriteSize.x * mainBoardAdjust;
-                    if (spriteSize.y > 1e-4f) mbScale.y = (gridLocalH * mainBoardGridPadding) / spriteSize.y * mainBoardAdjust;
+                    Vector3 targetWorld = refCol.transform.lossyScale * handAnchorAdjust;
+                    Vector3 parentLossy = ha.parent != null ? ha.parent.lossyScale : Vector3.one;
+                    ha.localScale = new Vector3(
+                        Mathf.Abs(parentLossy.x) > 1e-5f ? targetWorld.x / parentLossy.x : targetWorld.x,
+                        Mathf.Abs(parentLossy.y) > 1e-5f ? targetWorld.y / parentLossy.y : targetWorld.y,
+                        Mathf.Abs(parentLossy.z) > 1e-5f ? targetWorld.z / parentLossy.z : targetWorld.z);
                 }
                 else
                 {
-                    mbScale.x *= mainBoardAdjust;
-                    mbScale.y *= mainBoardAdjust;
+                    ha.localScale = authoredHandScale * scale * handAnchorAdjust;
                 }
-                boardFrame.transform.localScale = mbScale;
             }
+        }
 
-            // HandAnchor is NOT a child of Board, so it gets F applied directly,
-            // PLUS the per-prefab adjust as an extra multiplier.
-            if (playerHand != null && playerHand.HandAnchor != null)
-                playerHand.HandAnchor.localScale = authoredHandScale * scale * handAnchorAdjust;
+        /// <summary>
+        /// Sizes the MainBoard FRAME so it WRAPS the current grid — independent of Auto Fit's global scale.
+        /// width = cols×ColumnSpacing, height = rows×PieceSpacing, × Main Board Grid Padding, ÷ the sprite's
+        /// native bounds → the board hugs ANY grid automatically. Per-grid mainBoardSizeMultiplier folds in.
+        /// No-op without a board sprite. Gated by autoSizeBoardToGrid; called from RefreshAlignment.
+        /// </summary>
+        void SizeBoardFrameToGrid()
+        {
+            if (board == null || CurrentLevel == null) return;
+            if (boardFrame == null) boardFrame = board.GetComponentInChildren<BoardFrame>(true);
+            if (boardFrame == null) return;
+
+            GetGrid(CurrentLevel, out int cols, out int rowsMax);
+            var piecePrefab = ResolvePiecePrefab(CurrentLevel);
+
+            float mainBoardAdjust = 1f;
+            if (TryGetSpacingOverride(piecePrefab, out var ov) && ov.mainBoardScaleAdjust > 0f)
+                mainBoardAdjust = ov.mainBoardScaleAdjust;
+            if (TryGetGridOverride(cols, rowsMax, out var gov) && gov.mainBoardSizeMultiplier > 0f)
+                mainBoardAdjust *= gov.mainBoardSizeMultiplier;
+
+            boardFrame.Apply(); // ensure the sprite is present so its native bounds are valid
+            var sr = boardFrame.GetComponent<SpriteRenderer>();
+            float pieceSpacing = FirstColumnPieceSpacing();
+            Vector3 mbScale = authoredMainBoardScale; // keeps authored z (depth)
+            if (sr != null && sr.sprite != null && pieceSpacing > 0f)
+            {
+                Vector3 spriteSize = sr.sprite.bounds.size;
+                float gridLocalW = cols    * board.ColumnSpacing;
+                float gridLocalH = rowsMax * pieceSpacing;
+                if (spriteSize.x > 1e-4f) mbScale.x = (gridLocalW * mainBoardGridPadding) / spriteSize.x * mainBoardAdjust;
+                if (spriteSize.y > 1e-4f) mbScale.y = (gridLocalH * mainBoardGridPadding) / spriteSize.y * mainBoardAdjust;
+            }
+            else
+            {
+                mbScale.x *= mainBoardAdjust;
+                mbScale.y *= mainBoardAdjust;
+            }
+            boardFrame.transform.localScale = mbScale;
         }
 
         /// <summary>PieceSpacing of the first spawned Column (Board-local units), or 0 if none found yet.</summary>
@@ -759,9 +889,22 @@ namespace Sort
                  "resizing the board. ≤ 0 = 1 (no change).")]
         public float pieceScaleMultiplier;
 
-        [Tooltip("Extra WORLD-space offset that MOVES the MainBoard (and its attached indicators) for this " +
-                 "grid, on top of the auto-centering on the column grid. Use to nudge the board into place.")]
+        [Tooltip("Extra WORLD-space offset that MOVES the WHOLE assembly (MainBoard + columns + pieces) for " +
+                 "this grid, on top of the auto-centering on the column grid. Board and pieces move together.")]
         public Vector3 mainBoardOffset;
+
+        [Tooltip("Extra WORLD-space offset that shifts ONLY the MainBoard FRAME (the background image) " +
+                 "relative to the columns/pieces — the pieces STAY PUT. Use to nudge just the board up/down " +
+                 "for better margin balance while the tiles keep their place. The frame is normally " +
+                 "auto-centered on the pieces; this offsets it from that center. Try Y first (and/or Z, since " +
+                 "the board is tilted) — small values like (0, 0.3, 0). Opposite intent of Main Board Offset.")]
+        public Vector3 mainBoardFrameOffset;
+
+        [Tooltip("Offset (in HandAnchor's local space) that moves the WHOLE PlayerHand — the held piece AND " +
+                 "the placemat under it — for this grid. Use to reposition the hand up/down/sideways relative " +
+                 "to the board. X = left/right, Y = up/down, Z = depth. Independent of the per-prefab " +
+                 "'heldPieceExtraOffset' (which only nudges the held piece WITHIN the hand).")]
+        public Vector3 playerHandOffset;
 
         [Tooltip("MainBoard SIZE multiplier for this grid — scales the board image itself (it still wraps " +
                  "the grid; this scales it up / down on top). ≤ 0 = 1 (no change).")]

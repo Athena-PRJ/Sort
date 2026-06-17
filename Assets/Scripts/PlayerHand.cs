@@ -19,20 +19,31 @@ namespace Sort
         [Header("Animation")]
         [Tooltip("Master toggle. If off, moves resolve instantly (the old behaviour) — useful for debugging logic.")]
         [SerializeField] private bool useAnimations = true;
-        [Tooltip("Phase 1: held piece flies from hand to top slot of the clicked column.\n" +
-                 "This is the dominant cost in click→next-click responsiveness — reduce for a snappier feel.")]
+
+        [Header("▸ Click → drop — MAIN feel knobs")]
+        [Tooltip("FLIGHT SPEED + RESPONSIVENESS (seconds). Time the held piece takes to fly hand → column top. " +
+                 "This is THE knob for how snappy a tap feels — it's the dominant cost before a move resolves and " +
+                 "the next tap can act. LOWER = faster flight AND quicker response. ~0.12 = snappy, ~0.25 = floaty.")]
         [SerializeField] private float heldToTopDuration = 0.18f;
-        [Tooltip("Phase 2: existing column pieces shift down AND the bottom piece flies to hand (in parallel).\n" +
-                 "Runs concurrently with Phase 1 so total move time = max(Phase 1, Phase 2).")]
+        [Tooltip("FLIGHT HEIGHT (world units). Apex clearance of the held-piece lob: how far the top of the arc " +
+                 "sits ABOVE the higher endpoint (hand vs board slot). The piece always rises this far above BOTH " +
+                 "hand and board, then drops into the slot — a clean lob that never clips the tilted board. " +
+                 "0 = just grazes the higher endpoint; ~0.5–1.5 = a clearly visible hop. Live-tunable in Play mode.")]
+        [SerializeField] private float dropArcHeight = 1.0f;
+        [Tooltip("BOWLING-THROW sideways curve: max world-units the held piece swings to one side at mid-flight, " +
+                 "scaled by the clicked column's horizontal position — OUTER columns curve more, the CENTER " +
+                 "column gets a small RANDOM lean so it isn't dead straight. The piece swings out then hooks " +
+                 "back into the slot. 0 = straight lob; ~0.4–0.8 = a gentle hook. Negate to flip the curve side.")]
+        [SerializeField] private float bowlingLateralBow = 0.6f;
+        [Tooltip("ROOM-MAKING SPEED (seconds). Time for the column's existing pieces to shift down one slot AND " +
+                 "the bottom piece to pop to hand — runs CONCURRENTLY with the flight above, so total move time = " +
+                 "max(this, flight speed). Keep ≤ flight speed so the slot is empty as the held piece lands.")]
         [SerializeField] private float shiftAndPopDuration = 0.10f;
-        [Tooltip("How high the HELD piece arcs above the direct line on its way to the column's top slot. " +
-                 "0 = straight line (old behavior, shortest path). Higher = pronounced lob (golf shot feel) — " +
-                 "piece peaks ABOVE the target then descends into the slot. Suggested 1.0-2.0 for a clear arc, " +
-                 "high enough that the apex sits above the column's top so the piece visibly 'drops in' on landing.")]
-        [SerializeField] private float dropArcHeight = 1.5f;
+
+        [Header("▸ Pop & land bounce (secondary motion)")]
         [Tooltip("How high the EJECTED (popped) piece arcs above the direct line on its way from column → hand. " +
-                 "Smaller scale than dropArcHeight since the pop is the secondary motion — too big a pop steals " +
-                 "focus from the drop.")]
+                 "Smaller than dropArcHeight since the pop is the secondary motion — too big a pop steals focus " +
+                 "from the drop.")]
         [SerializeField] private float popArcHeight = 0.8f;
         [Tooltip("Duration of the trampoline-style land bounce when the ejected piece arrives in hand. " +
                  "Plays AFTER the arc completes — piece sits in hand for this many seconds while scaling " +
@@ -41,6 +52,8 @@ namespace Sort
         [Tooltip("Peak scale overshoot during the land bounce. 0.15 = piece grows 15% larger at the apex " +
                  "(baseline × 1.15) before settling back to baseline. 0 disables the bounce entirely.")]
         [SerializeField] private float landBounceOvershoot = 0.15f;
+
+        [Header("▸ Pacing")]
         [Tooltip("Small pause between a successful move and the column-complete celebration, so the lock reads as 'earned'.\n" +
                  "Celebration runs in BACKGROUND (fire-and-forget) — input is unlocked before celebration finishes, " +
                  "so player can immediately tap another column. Locked column's own colliders are disabled, so no re-click risk.")]
@@ -58,12 +71,22 @@ namespace Sort
                  "axis, like the Questionmark reveal). 1 = a single clean 360° flip (recommended). Values " +
                  ">1 read as excessive mid-air spinning — keep at 1 to match the reveal animation.")]
         [SerializeField] private float celebrationRotations = 1f;
+        [Tooltip("Delay between consecutive pieces' spins so the celebration cascades from the TOP piece " +
+                 "down the column (a ripple) instead of every piece flipping at once. Each piece starts " +
+                 "this many seconds after the one above it; spins still overlap. 0 = old all-at-once flip. " +
+                 "~0.06–0.10 reads as a nice chain.")]
+        [SerializeField] private float celebrationStagger = 0.08f;
 
         [Header("Switch skill animation")]
         [Tooltip("Flight time for each piece during a Switch swap.")]
         [SerializeField] private float switchFlightDuration = 0.35f;
-        [Tooltip("Bow magnitude (in local Y) for the two crossed arcs. The two pieces use opposite signs so they don't visually collide.")]
+        [Tooltip("HIGH hop (in-plane, up-screen) for one of the two swapped pieces. Both pieces now arc UP " +
+                 "(like the rainbow-sink swap) at DIFFERENT heights instead of one up / one down — the old " +
+                 "down-arc dipped the piece BEHIND the tilted board and it vanished for a moment.")]
         [SerializeField] private float switchArcHeight = 1.2f;
+        [Tooltip("LOW hop for the other swapped piece. Keep it different from the high hop so the two pieces " +
+                 "cross at different screen heights and never overlap / pass through each other.")]
+        [SerializeField] private float switchArcHeightLow = 0.5f;
 
         [Header("Magnet skill animation")]
         [Tooltip("Flight time for each piece during a Magnet gather/displace.")]
@@ -78,27 +101,41 @@ namespace Sort
         [Header("Rainbow sink animation")]
         [Tooltip("Time each affected piece takes to lerp to its new slot when a rainbow sinks to the bottom.")]
         [SerializeField] private float rainbowSinkDuration = 0.25f;
+        [Tooltip("Hop height (in-plane, up-screen) for the piece SINKING down to the bottom. Pieces now " +
+                 "arc up and swap places instead of sliding straight through each other. This is the BIG " +
+                 "hop — keep it different from the 'up' hop below so crossing pieces pass at different " +
+                 "screen heights and never visually overlap.")]
+        [SerializeField] private float sinkArcHeightDown = 1.0f;
+        [Tooltip("Hop height for the piece(s) being DISPLACED upward by the sink. The SMALL hop — must " +
+                 "differ from the 'down' hop so the two pieces don't fly through each other.")]
+        [SerializeField] private float sinkArcHeightUp = 0.45f;
 
         [Header("Tie shift + break animation")]
-        [Tooltip("Tied-shift flight SPEED in column-local units/sec. Every piece in a tied shift (the " +
-                 "dropped piece, the down-shifters, and the bottom→top wraps) moves at THIS constant speed, " +
-                 "so each one's duration scales with its travel distance — pieces glide uniformly instead " +
-                 "of some arriving early and some late (the old fixed-duration look). Higher = snappier. " +
-                 "~8 ≈ a 1-slot shift in ~0.25s; a full-column wrap takes proportionally longer.")]
-        [SerializeField] private float tieShiftSpeed = 8f;
-        [Tooltip("Floor on any single tied-shift move's duration, so a near-zero-distance move still eases " +
-                 "smoothly instead of snapping.")]
-        [SerializeField] private float tieShiftMinDuration = 0.12f;
+        [Tooltip("Tie SYNC lead: fraction of the held-piece flight (heldToTopDuration) that elapses BEFORE " +
+                 "the rest of the tied chain rotates. The held piece launches first and leads; once it has " +
+                 "flown this fraction of the way (i.e. is NEARING the board), EVERY tied column rotates as " +
+                 "ONE synchronized beat — same start, same duration — all landing together with the held " +
+                 "piece. This replaces the old per-piece distance-based speed (which made short shifts finish " +
+                 "long before long bottom→top wraps → the desynced look). 0 = whole chain moves together from " +
+                 "t=0; ~0.35 = a little anticipation then a clean synchronized snap. Range 0-0.9.")]
+        [SerializeField, Range(0f, 0.9f)] private float tieSyncLeadFraction = 0.35f;
         [Tooltip("Fade-out duration when a tied pair reaches the bottom row and the tie breaks. " +
                  "TieVisual swaps to crack materials then alpha fades 1→0 over this many seconds, " +
                  "then destroys itself.")]
         [SerializeField] private float tieBreakFadeDuration = 0.3f;
 
         [Header("Questionmark reveal animation")]
-        [Tooltip("Total time for the hop + mid-air color swap when a Questionmark is revealed.")]
+        [Tooltip("REVEAL SPEED. Total time (seconds) for the hop + mid-air color swap. LOWER = faster reveal.")]
         [SerializeField] private float revealHopDuration = 0.35f;
         [Tooltip("How far the piece hops up (in local units) during the reveal animation.")]
         [SerializeField] private float revealHopHeight = 0.7f;
+        [Tooltip("How many full turns the piece flips during the reveal. 1 = a single clean flip (recommended, " +
+                 "matches the celebration); 0.5 = a half flip. Higher reads as over-spinning — keep at 1.")]
+        [SerializeField] private float revealRotations = 1f;
+        [Tooltip("WHEN the real color appears, as a fraction of the hop (0 = start, 0.5 = apex, 1 = land). " +
+                 "Lower reveals the original piece SOONER; higher waits longer before the swap.")]
+        [Range(0f, 1f)]
+        [SerializeField] private float revealAt = 0.5f;
         [Tooltip("Optional pause between the move resolving and the reveal hop starting, so the reveal reads as 'earned'.")]
         [SerializeField] private float revealDelay = 0.03f;
 
@@ -177,10 +214,10 @@ namespace Sort
         }
 
         /// <summary>
-        /// Sets the held-piece placemat (HandPlace decoration) sprite from the level's themed
-        /// <see cref="LevelData.placeSprite"/>. No-op if there's no decoration / SpriteRenderer / sprite,
-        /// so a level that leaves placeSprite null keeps the prefab's authored decoration. Called by
-        /// LevelLoader on build.
+        /// Optional helper to set the held-piece placemat (HandSlotDecoration) sprite at runtime. No longer
+        /// called by LevelLoader (the placemat art is fixed in the scene now); kept for manual/scripted use.
+        /// No-op if there's no decoration / SpriteRenderer / Image / sprite. Works on a world SpriteRenderer
+        /// or a UGUI Image.
         /// </summary>
         public void SetPlaceSprite(Sprite sprite)
         {
@@ -410,6 +447,29 @@ namespace Sort
         /// then play the celebration. Logic state (parent/sibling reassignments, sink checks,
         /// lock eval) updates EAGERLY at the start so the game state machine never lags behind visuals.
         /// </summary>
+        /// <summary>
+        /// Lean factor in [-1, 1] for the bowling-throw curve, from the clicked column's horizontal position:
+        /// −1 = far left, +1 = far right (Board-local X, columns are centered at 0). A near-center column
+        /// gets a small RANDOM lean so the middle isn't dead straight. 0 columns / single column → random.
+        /// </summary>
+        float ComputeLateralLean(Column clicked)
+        {
+            float RandomLean() => (UnityEngine.Random.value < 0.5f ? -1f : 1f) * UnityEngine.Random.Range(0.25f, 0.5f);
+            if (clicked == null) return 0f;
+
+            float clickedX = clicked.transform.localPosition.x;
+            float maxX = Mathf.Abs(clickedX);
+            var gm = GameManager.Instance;
+            if (gm != null)
+                foreach (var c in gm.Columns)
+                    if (c != null) maxX = Mathf.Max(maxX, Mathf.Abs(c.transform.localPosition.x));
+
+            if (maxX < 1e-3f) return RandomLean();              // single / centered column
+            float lean = Mathf.Clamp(clickedX / maxX, -1f, 1f);
+            if (Mathf.Abs(lean) < 0.15f) lean = RandomLean();   // dead-center column → gentle random side
+            return lean;
+        }
+
         IEnumerator DoMoveAnimated(Column col)
         {
             isAnimating = true;
@@ -438,15 +498,18 @@ namespace Sort
             // --- Kick off all motions concurrently --------------------------
             var animations = new List<Coroutine>();
 
-            // Held → top slot. ARC instead of straight line: piece lobs UP over the board edge then
-            // descends into the top slot (golf-shot / blowing feel). arcAxis = column's local "up" =
-            // -LayoutDirection, so for the default top-down layout the arc bows upward in world space.
-            // Visible upside: the piece peaks ABOVE the target slot (provided dropArcHeight is big
-            // enough) and visibly DROPS into place — far prettier than the old shortest-path line,
-            // and avoids visually clipping through nearby pieces/frame on its way up.
-            Vector3 colUpLocal = -col.LayoutDirection.normalized;
-            animations.Add(StartCoroutine(toInsert.AnimateLocalArcTo(
-                Vector3.zero, toInsert.RestRotation, heldToTopDuration, dropArcHeight, colUpLocal, Easing.SmoothStep, emitTrail: true)));
+            // Held → top slot. WORLD-space lob (AnimateWorldArcTo): the piece rises straight up on
+            // screen above BOTH the hand and the board by dropArcHeight, then descends into slot 0 —
+            // a clean golf-shot drop. We deliberately do NOT bow along the column's local "up"
+            // (−LayoutDirection): the board is tilted ≈90°, so that axis points perpendicular to the
+            // board face and the lob would clip THROUGH the board/pieces (same trap AnimateCelebration
+            // documents). World-up is robust to the tilt.
+            // Bowling-throw lateral curve: lean depends on the clicked column's position; center → random.
+            float lean = ComputeLateralLean(col);
+            Vector3 latDir = Camera.main != null ? Camera.main.transform.right : Vector3.right;
+            animations.Add(StartCoroutine(toInsert.AnimateWorldArcTo(
+                Vector3.zero, toInsert.RestRotation, heldToTopDuration, dropArcHeight, Easing.SmoothStep,
+                emitTrail: true, lateralDir: latDir, lateralBow: lean * bowlingLateralBow)));
 
             // Every piece except the ejected one shifts down one slot — keep STRAIGHT line because
             // they move only 1 piece-slot's worth of distance, an arc here would look unnecessarily
@@ -485,7 +548,7 @@ namespace Sort
                 if (revealDelay > 0f) yield return new WaitForSeconds(revealDelay);
                 var revealAnims = new List<Coroutine>();
                 foreach (var p in toReveal)
-                    revealAnims.Add(StartCoroutine(p.AnimateRevealHop(revealHopDuration, revealHopHeight, Vector3.up, Vector3.zero)));
+                    revealAnims.Add(StartCoroutine(p.AnimateRevealHop(revealHopDuration, revealHopHeight, Vector3.up, Vector3.zero, revealAt, revealRotations * 360f)));
                 foreach (var co in revealAnims) yield return co;
             }
 
@@ -570,51 +633,54 @@ namespace Sort
                 bottom.transform.SetSiblingIndex(0);
             }
 
-            // --- Spawn all motion coroutines in parallel ---
-            // Every tied-shift piece flies at the SAME column-local speed (duration ∝ distance via
-            // TieShiftDuration) so the whole shift reads as one coherent rotation — no more "some pieces
-            // arrive before others" from a 1-slot shifter and a bottom→top wrap sharing one fixed duration.
+            // --- Spawn all motion coroutines: ONE SYNCHRONIZED BEAT ---
+            // The held piece LEADS (flies from hand over heldToTopDuration). Once it has flown
+            // tieSyncLeadFraction of the way (nearing the board), EVERY tied column rotates together:
+            // same start (boardLag) + same duration (boardDur), so the clicked column's down-shift and
+            // every linked column's bottom→top wrap move on the exact same frame and land WITH the held
+            // piece. Replaces the old distance-based per-piece speed that desynced short vs long moves.
+            float boardLag = heldToTopDuration * tieSyncLeadFraction;
+            float boardDur = Mathf.Max(0.01f, heldToTopDuration - boardLag);
+
             var animations = new List<Coroutine>();
+
+            // Held piece leads — world-up lob (no lag, no clip-through), trail on.
+            if (toInsert != null)
+                animations.Add(StartCoroutine(toInsert.AnimateWorldArcTo(
+                    Vector3.zero, toInsert.RestRotation, heldToTopDuration, dropArcHeight, Easing.SmoothStep, emitTrail: true)));
+
             foreach (var col in chain)
             {
                 var snap = snaps[col];
                 if (snap.Count == 0) continue;
                 Vector3 layoutDir = col.LayoutDirection;
                 float spacing = col.PieceSpacing;
-                Vector3 colUpLocal = -col.LayoutDirection.normalized;
 
                 if (col == clickedCol)
                 {
-                    if (toInsert != null)
-                        animations.Add(StartCoroutine(toInsert.AnimateLocalArcTo(
-                            Vector3.zero, toInsert.RestRotation,
-                            TieShiftDuration(toInsert.transform.localPosition, Vector3.zero), dropArcHeight, colUpLocal, Easing.SmoothStep, emitTrail: true)));
-                    // Shifters: snap[0..n-2] → slot i+1.
+                    // Down-shifters: snap[0..n-2] → slot i+1, on the synchronized beat (straight line — 1 slot).
                     for (int i = 0; i < snap.Count - 1; i++)
                     {
                         var p = snap[i];
                         Vector3 newSlot = layoutDir * ((i + 1) * spacing);
-                        animations.Add(StartCoroutine(p.AnimateLocalTo(
-                            newSlot, p.RestRotation, TieShiftDuration(p.transform.localPosition, newSlot), Easing.SmoothStep)));
+                        animations.Add(StartCoroutine(DelayedLine(p, newSlot, boardDur, boardLag)));
                     }
-                    // Ejected → hand with bounce (reuses the same helper as the simple-move path).
+                    // Ejected bottom → hand (arc + bounce), on the synchronized beat.
                     if (ejected != null)
-                        animations.Add(StartCoroutine(EjectedArcThenBounce(ejected, heldPieceLocalOffset)));
+                        animations.Add(StartCoroutine(EjectedArcThenBounce(ejected, heldPieceLocalOffset, boardDur, boardLag)));
                 }
                 else
                 {
-                    // Non-clicked: bottom (= snap[last]) wraps to top with an arc.
+                    // Non-clicked: bottom wraps to top via a world-up lob (matches the held drop, no clip),
+                    // on the synchronized beat.
                     var bottom = snap[snap.Count - 1];
-                    animations.Add(StartCoroutine(bottom.AnimateLocalArcTo(
-                        Vector3.zero, bottom.RestRotation,
-                        TieShiftDuration(bottom.transform.localPosition, Vector3.zero), dropArcHeight, colUpLocal, Easing.SmoothStep)));
-                    // Other pieces shift down 1 slot (same target math as clicked col's shifters).
+                    animations.Add(StartCoroutine(DelayedWorldArc(bottom, Vector3.zero, boardDur, dropArcHeight, boardLag)));
+                    // Other pieces shift down 1 slot, on the synchronized beat.
                     for (int i = 0; i < snap.Count - 1; i++)
                     {
                         var p = snap[i];
                         Vector3 newSlot = layoutDir * ((i + 1) * spacing);
-                        animations.Add(StartCoroutine(p.AnimateLocalTo(
-                            newSlot, p.RestRotation, TieShiftDuration(p.transform.localPosition, newSlot), Easing.SmoothStep)));
+                        animations.Add(StartCoroutine(DelayedLine(p, newSlot, boardDur, boardLag)));
                     }
                 }
             }
@@ -676,7 +742,7 @@ namespace Sort
             {
                 var toReveal = col.FindQuestionmarksToReveal(revealThreshold);
                 foreach (var p in toReveal)
-                    revealAnims.Add(StartCoroutine(p.AnimateRevealHop(revealHopDuration, revealHopHeight, Vector3.up, Vector3.zero)));
+                    revealAnims.Add(StartCoroutine(p.AnimateRevealHop(revealHopDuration, revealHopHeight, Vector3.up, Vector3.zero, revealAt, revealRotations * 360f)));
             }
             if (revealAnims.Count > 0 && revealDelay > 0f) yield return new WaitForSeconds(revealDelay);
             foreach (var co in revealAnims) yield return co;
@@ -720,11 +786,32 @@ namespace Sort
         }
 
         /// <summary>
-        /// Duration for one tied-shift piece so every piece in the shift moves at the same column-local
-        /// speed: distance ÷ <see cref="tieShiftSpeed"/>, floored by <see cref="tieShiftMinDuration"/>.
+        /// Tie-sync overload: waits <paramref name="delay"/> so the pop joins the synchronized board
+        /// beat, then arcs to hand over <paramref name="arcDuration"/> and plays the land bounce.
         /// </summary>
-        float TieShiftDuration(Vector3 fromLocal, Vector3 toLocal)
-            => Mathf.Max(tieShiftMinDuration, Vector3.Distance(fromLocal, toLocal) / Mathf.Max(0.01f, tieShiftSpeed));
+        IEnumerator EjectedArcThenBounce(Piece p, Vector3 targetLocalPos, float arcDuration, float delay)
+        {
+            if (delay > 0f) yield return new WaitForSeconds(delay);
+            yield return StartCoroutine(p.AnimateLocalArcTo(
+                targetLocalPos, p.RestRotation, arcDuration, popArcHeight, Vector3.up, Easing.SmoothStep));
+            yield return StartCoroutine(p.AnimateLandBounce(landBounceDuration, landBounceOvershoot));
+        }
+
+        /// <summary>Waits <paramref name="delay"/> then lerps the piece in a straight line to its slot
+        /// (used for the 1-slot down-shifters on the synchronized tie beat).</summary>
+        IEnumerator DelayedLine(Piece p, Vector3 targetLocalPos, float duration, float delay)
+        {
+            if (delay > 0f) yield return new WaitForSeconds(delay);
+            yield return StartCoroutine(p.AnimateLocalTo(targetLocalPos, p.RestRotation, duration, Easing.SmoothStep));
+        }
+
+        /// <summary>Waits <paramref name="delay"/> then flies the piece to its slot via a WORLD-up lob
+        /// (used for the non-clicked columns' bottom→top wrap on the synchronized tie beat).</summary>
+        IEnumerator DelayedWorldArc(Piece p, Vector3 targetLocalPos, float duration, float apexClearance, float delay)
+        {
+            if (delay > 0f) yield return new WaitForSeconds(delay);
+            yield return StartCoroutine(p.AnimateWorldArcTo(targetLocalPos, p.RestRotation, duration, apexClearance, Easing.SmoothStep));
+        }
 
         /// <summary>
         /// Background celebration coroutine — does NOT block input. Waits the configured
@@ -748,7 +835,7 @@ namespace Sort
             if (col == null) yield break;
             SfxManager.Play(SfxId.ColumnComplete);
             yield return StartCoroutine(col.AnimateCelebration(
-                celebrationDuration, celebrationHopHeight, celebrationRotations * 360f));
+                celebrationDuration, celebrationHopHeight, celebrationRotations * 360f, celebrationStagger));
         }
 
         // ---------------------------------------------------------------------
@@ -822,10 +909,13 @@ namespace Sort
             b.transform.SetParent(colA.transform, worldPositionStays: true);
             b.transform.SetSiblingIndex(idxA);
 
-            // Cross the arcs in opposite directions so the two pieces don't visually collide mid-flight.
-            // Target rotation = each piece's RestRotation (auto-captured from prefab) so they land upright.
-            var animA = StartCoroutine(a.AnimateLocalArcTo(targetLocalA, a.RestRotation, switchFlightDuration,  switchArcHeight, Vector3.up, Easing.SmoothStep));
-            var animB = StartCoroutine(b.AnimateLocalArcTo(targetLocalB, b.RestRotation, switchFlightDuration, -switchArcHeight, Vector3.up, Easing.SmoothStep));
+            // Both pieces hop UP (Vector3.up = in-plane, up-screen — same axis as the rainbow-sink swap and
+            // the celebration hop) but at DIFFERENT heights, so where their paths cross they sit at
+            // different screen heights and never overlap. Previously B used -switchArcHeight (a DOWN arc),
+            // which on the ≈90°-tilted board dipped it BEHIND the board surface → the piece went invisible
+            // for a moment. Target rotation = each piece's RestRotation so they land upright.
+            var animA = StartCoroutine(a.AnimateLocalArcTo(targetLocalA, a.RestRotation, switchFlightDuration, switchArcHeight,    Vector3.up, Easing.SmoothStep));
+            var animB = StartCoroutine(b.AnimateLocalArcTo(targetLocalB, b.RestRotation, switchFlightDuration, switchArcHeightLow, Vector3.up, Easing.SmoothStep));
             yield return animA;
             yield return animB;
 
@@ -844,7 +934,7 @@ namespace Sort
                 if (revealDelay > 0f) yield return new WaitForSeconds(revealDelay);
                 var revealAnims = new List<Coroutine>();
                 foreach (var p in toRevealAB)
-                    revealAnims.Add(StartCoroutine(p.AnimateRevealHop(revealHopDuration, revealHopHeight, Vector3.up, Vector3.zero)));
+                    revealAnims.Add(StartCoroutine(p.AnimateRevealHop(revealHopDuration, revealHopHeight, Vector3.up, Vector3.zero, revealAt, revealRotations * 360f)));
                 foreach (var co in revealAnims) yield return co;
             }
 
@@ -1224,29 +1314,81 @@ namespace Sort
 
             SfxManager.Play(SfxId.Rewind);
 
-            // 1. Unlock first so colliders re-enable and reparent works cleanly.
-            if (lastMoveLockedColumn) lastMoveColumn.Unlock();
-
-            // 2. Push the currently-held piece back to the BOTTOM of the column.
+            // Capture what we need, then CLEAR the undo state SYNCHRONOUSLY so a second tap during the
+            // animation can't re-trigger (CanUndo flips false immediately; isAnimating also guards input).
+            var col = lastMoveColumn;
+            bool wasLocked = lastMoveLockedColumn;
             var heldNow = heldPiece;
             heldPiece = null;
-            heldNow.transform.SetParent(lastMoveColumn.transform, worldPositionStays: false);
-            heldNow.transform.SetSiblingIndex(lastMoveColumn.transform.childCount - 1);
-
-            // 3. Pull the column's top piece back into the hand.
-            PlaceInHand(topPiece);
-
-            // 4. Repaint positions and refund the move with GameManager.
-            lastMoveColumn.Layout();
-            GameManager.Instance?.RefundMove();
-
-            // Clear so the player can't undo the same move twice.
             lastMoveColumn = null;
             lastMoveLockedColumn = false;
 
+            isAnimating = true;
+            StartCoroutine(DoUndoAnimated(col, heldNow, topPiece, wasLocked));
+        }
+
+        /// <summary>
+        /// Animated reverse of the last move (Rewind): the held piece arcs from the hand back DOWN into the
+        /// column's bottom slot while that column's TOP piece arcs back UP into the hand, and the remaining
+        /// pieces slide one slot toward the top. Mirrors <see cref="DoMoveAnimated"/> so a rewind reads as
+        /// the move "playing backwards" rather than an instant snap. State was already cleared in Undo().
+        /// </summary>
+        IEnumerator DoUndoAnimated(Column col, Piece heldNow, Piece topPiece, bool wasLocked)
+        {
+            // Unlock first so colliders re-enable and reparenting works cleanly.
+            if (wasLocked) col.Unlock();
+
+            // Reparent WITHOUT snapping (worldPositionStays) so each piece keeps its current on-screen
+            // position as the arc's start: heldNow stays at the hand, topPiece stays at slot 0.
+            heldNow.transform.SetParent(col.transform, worldPositionStays: true);
+            heldNow.transform.SetSiblingIndex(col.transform.childCount - 1);   // bottom slot
+            topPiece.transform.SetParent(handAnchor, worldPositionStays: true);
+
+            // Capture start positions + each remaining piece's new slot (topPiece is gone to the hand).
+            Vector3 layoutDir = col.LayoutDirection;
+            float spacing = col.PieceSpacing;
+            var startLocal = new Dictionary<Piece, Vector3>();
+            var targets = new Dictionary<Piece, Vector3>();
+            int slot = 0;
+            for (int i = 0; i < col.transform.childCount; i++)
+            {
+                var p = col.transform.GetChild(i).GetComponent<Piece>();
+                if (p == null) continue;
+                startLocal[p] = p.transform.localPosition;
+                targets[p] = layoutDir * (slot * spacing);
+                slot++;
+            }
+
+            var anims = new List<Coroutine>();
+
+            // Held piece → bottom slot: WORLD-up lob (robust to the ≈90° board tilt, same as the forward drop).
+            if (targets.TryGetValue(heldNow, out var heldTarget))
+                anims.Add(StartCoroutine(heldNow.AnimateWorldArcTo(
+                    heldTarget, heldNow.RestRotation, heldToTopDuration, dropArcHeight, Easing.SmoothStep, emitTrail: true)));
+
+            // Top piece → hand: arc + land bounce, exactly like a forward move's ejected piece.
+            anims.Add(StartCoroutine(EjectedArcThenBounce(topPiece, heldPieceLocalOffset)));
+
+            // Remaining pieces shift one slot toward the top — short straight slides.
+            foreach (var kv in targets)
+            {
+                var p = kv.Key;
+                if (p == heldNow) continue;
+                if ((startLocal[p] - kv.Value).sqrMagnitude < 1e-6f) continue;
+                anims.Add(StartCoroutine(p.AnimateLocalTo(kv.Value, p.RestRotation, shiftAndPopDuration, Easing.SmoothStep)));
+            }
+
+            foreach (var co in anims) yield return co;
+
+            // The top piece is now the held piece (matches the old PlaceInHand result).
+            heldPiece = topPiece;
+
+            col.Layout();                       // snap to exact final slots, neutralizing float drift
+            GameManager.Instance?.RefundMove();
+            isAnimating = false;
+
             // Held piece changed after undo — recheck sink opportunities.
             UpdateRainbowSinkOpportunities();
-
             StateChanged?.Invoke();
         }
 
@@ -1335,7 +1477,12 @@ namespace Sort
                 slot++;
             }
 
-            // Lerp each piece from its captured start to its new slot in parallel.
+            // Arc each piece from its captured start to its new slot in parallel. Pieces used to slide
+            // STRAIGHT down the column line, so a piece going down and another coming up passed THROUGH
+            // each other on screen. Instead they now hop up (in-plane, up-screen along Vector3.up — same
+            // axis as the celebration/reveal hop) and swap. The piece sinking to the bottom hops HIGH and
+            // the displaced piece(s) hop LOW, so where their paths cross they sit at different screen
+            // heights and never visually overlap.
             var anims = new List<Coroutine>();
             foreach (var p in pieces)
             {
@@ -1343,7 +1490,13 @@ namespace Sort
                 Vector3 end   = targets.TryGetValue(p, out var t) ? t : start;
                 if ((start - end).sqrMagnitude < 1e-6f) continue;
                 p.transform.localPosition = start; // ensure starting position is clean
-                anims.Add(StartCoroutine(p.AnimateLocalTo(end, p.RestRotation, rainbowSinkDuration, Easing.SmoothStep)));
+
+                // Direction along the column: moving toward the bottom slot (the sinker) = negative along
+                // LayoutDirection; being pushed up = positive. Different hop heights per direction keep the
+                // crossing pieces apart.
+                float along = Vector3.Dot(end - start, col.LayoutDirection);
+                float arcHeight = along < 0f ? sinkArcHeightDown : sinkArcHeightUp;
+                anims.Add(StartCoroutine(p.AnimateLocalArcTo(end, p.RestRotation, rainbowSinkDuration, arcHeight, Vector3.up, Easing.SmoothStep)));
             }
             foreach (var co in anims) yield return co;
 

@@ -12,15 +12,23 @@ namespace Sort.EditorTools
     [CustomEditor(typeof(LevelData))]
     public class LevelDataEditor : Editor
     {
+        // Cache the validation result so Validate() (loops + dictionaries + freeze reachability) runs
+        // ONLY when a field actually changes — not on every inspector repaint (mouse-move, hover, etc.).
+        // Re-running it every repaint was a needless cost on top of the per-field drawer work.
+        LevelData.ValidationResult _cached;
+
         public override void OnInspectorGUI()
         {
+            EditorGUI.BeginChangeCheck();
             DrawDefaultInspector();
+            bool changed = EditorGUI.EndChangeCheck();
 
             EditorGUILayout.Space(8);
             EditorGUILayout.LabelField("Validation", EditorStyles.boldLabel);
 
             var data = (LevelData)target;
-            var result = data.Validate();
+            if (changed || _cached == null) _cached = data.Validate();
+            var result = _cached;
 
             // Summary block always shown so designers see the current shape of the level.
             var summary = new StringBuilder();
@@ -74,7 +82,9 @@ namespace Sort.EditorTools
 
             if (GUILayout.Button("Re-validate"))
             {
-                // Forces a redraw with fresh results — useful after editing without changing fields.
+                // Force a fresh Validate() on next draw — useful after editing without changing fields
+                // (e.g. you edited a referenced palette/registry asset).
+                _cached = null;
                 Repaint();
             }
         }

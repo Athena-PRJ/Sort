@@ -16,13 +16,7 @@ MonoBehaviour:
   difficulty: 0
   piecePrefab: {fileID: 9008629956183570367, guid: 2384a7bd7eeb05348a1d172b63e15295, type: 3}
   paletteStyle: 1
-  mainBoardSprite: {fileID: 3286163911610860551, guid: 887af58ec93c9a94ca5385318a92559b, type: 3}
-  backgroundSprite: {fileID: 21300000, guid: 400c49dd64d11434d9ef68875aeb4c7a, type: 3}
-  outSprite: {fileID: 3286163911610860551, guid: f0a3079bf973bfe4989f25554bba0311, type: 3}
-  placeSprite: {fileID: 3286163911610860551, guid: dae7995b43530ca40aa50ad478de21a4, type: 3}
-  notDoneSprite: {fileID: 3286163911610860551, guid: c3440aec7d489ef4aaee70611c48d8d2, type: 3}
-  doneSprite: {fileID: 3286163911610860551, guid: 0e76e7708c1fe6e46885085b8cbb20fc, type: 3}
-  tickSprite: {fileID: 3286163911610860551, guid: 8470cefae9c15c847b6e1fe7514c88a7, type: 3}
+  themeSet: {fileID: 11400000, guid: 9d65a4569fa0b724b91b800c6f9f3b67, type: 2}
   moveLimit: 20
   startingHeldPiece:
     color: Cactus

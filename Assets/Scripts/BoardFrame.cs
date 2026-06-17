@@ -28,21 +28,24 @@ namespace Sort
         }
 
         /// <summary>
-        /// Refreshes the sprite from the current LevelData (with fallback chain). Called by
-        /// LevelLoader.BuildLevel. Safe to call again if the level changes mid-session.
+        /// Ensures draw mode is correct and that there's a sprite to measure for auto-fit. The board art
+        /// is now FIXED in the scene (recolored per level via UiRadiantTint), so this no longer swaps the
+        /// sprite per level — it only fills in <see cref="fallbackSprite"/> if the renderer has none.
+        /// Called by LevelLoader before the board auto-fit (which reads this renderer's bounds).
         /// </summary>
         public void Apply()
         {
             if (sr == null) sr = GetComponent<SpriteRenderer>();
             if (sr == null) return;
 
+            // Per-theme board sprite (LevelData.themeSet.mainBoardSprite). If the theme provides one, use it;
+            // else keep the scene-assigned sprite; else fall back. This lets each theme ship finished board art.
             var loader = LevelLoader.Instance;
-            Sprite chosen = loader != null && loader.CurrentLevel != null ? loader.CurrentLevel.mainBoardSprite : null;
-            if (chosen == null) chosen = fallbackSprite;
-            sr.sprite = chosen;
+            Sprite chosen = loader != null && loader.CurrentLevel != null ? loader.CurrentLevel.MainBoardSprite : null;
+            if (chosen != null) sr.sprite = chosen;
+            else if (sr.sprite == null && fallbackSprite != null) sr.sprite = fallbackSprite;
 
-            // Always use Simple draw mode so the GameObject's localScale (authored by designer)
-            // fully drives the rendered size. Parent Board.transform handles per-level scaling.
+            // Always Simple draw mode so the GameObject's localScale drives the rendered size.
             sr.drawMode = SpriteDrawMode.Simple;
         }
     }

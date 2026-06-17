@@ -46,7 +46,12 @@ namespace Sort
                  "value automatically scales with PrefabRegistry's pieceScale AND with per-level board auto-fit — no " +
                  "manual retune per prefab/level needed. Set to 0 to disable auto-sizing (designer controls " +
                  "TrailRenderer.widthMultiplier directly).")]
-        [SerializeField, Range(0f, 2f)] private float trailWidthPercent = 0.75f;
+        [SerializeField, Range(0f, 2f)] private float trailWidthPercent = 0.5f;
+        [Tooltip("Sorting order for the motion trail's renderer. Must be HIGHER than the board indicators " +
+                 "(MainBoardBuilder uses ≈10–11 for In / Not Done / Out) so the trail draws ON TOP of the " +
+                 "sprites it flies over, not behind them. Combined with the shader's ZTest Always (which stops " +
+                 "the board/pieces from occluding it), this keeps the trail always visible on top.")]
+        [SerializeField] private int trailSortingOrder = 50;
 
         // Rainbow animation lives in the shader (Sort/RainbowFlow): _Time.y * _Speed drives the
         // flow procedurally, no per-frame UV scroll needed. The shader's _FlowDir / _Speed /
@@ -128,7 +133,11 @@ namespace Sort
             // Auto-discover trail if designer didn't wire it in the Inspector. Disable emitting
             // upfront so the piece doesn't leak a trail during the spawn → initial-Layout positioning.
             if (trail == null) trail = GetComponentInChildren<TrailRenderer>(true);
-            if (trail != null) trail.emitting = false;
+            if (trail != null)
+            {
+                trail.emitting = false;
+                trail.sortingOrder = trailSortingOrder;   // draw above board indicators
+            }
             CacheOriginalMaterials();
             ApplyVisualState();
         }
@@ -146,18 +155,29 @@ namespace Sort
             if (trail == null) return;
             if (emit)
             {
+                trail.sortingOrder = trailSortingOrder;   // keep above indicators (live-tunable)
                 // Auto-size: trail width = (piece world width) × trailWidthPercent. Computed at
                 // emit-time so it survives PrefabRegistry pieceScale + per-level auto-fit changes.
                 // Designer's Width Curve shape (e.g. 1 → 0 for tapered tail) is preserved — the
                 // multiplier just scales the curve's amplitude.
                 if (trailWidthPercent > 0f)
                 {
-                    var bc = GetComponent<BoxCollider>();
-                    if (bc != null)
+                    // Use the piece's ACTUAL visual world width (Renderer bounds) so the trail tracks the
+                    // real on-screen size for THIS level's piece scale — not a fixed collider value. Exclude
+                    // the TrailRenderer itself (it's also a Renderer). Fall back to the collider if no mesh.
+                    float worldWidth = 0f;
+                    foreach (var r in GetComponentsInChildren<Renderer>())
                     {
-                        float worldWidth = Mathf.Abs(bc.size.x * transform.lossyScale.x);
-                        trail.widthMultiplier = worldWidth * trailWidthPercent;
+                        if (r == null || r is TrailRenderer) continue;
+                        worldWidth = r.bounds.size.x;
+                        break;
                     }
+                    if (worldWidth <= 0f)
+                    {
+                        var bc = GetComponent<BoxCollider>();
+                        if (bc != null) worldWidth = Mathf.Abs(bc.size.x * transform.lossyScale.x);
+                    }
+                    if (worldWidth > 0f) trail.widthMultiplier = worldWidth * trailWidthPercent;
                 }
                 if (!trail.emitting) trail.Clear();
             }
@@ -525,6 +545,70 @@ namespace Sort
         }
 
         /// <summary>
+        /// Flies to <paramref name="targetLocalPos"/> (local-space slot) along a parabolic lob whose
+        /// bow is added in WORLD space along world-up (Vector3.up), NOT along a local axis. This is the
+        /// difference from <see cref="AnimateLocalArcTo"/>: because the board is tilted ≈90°, a column's
+        /// local "up" (−LayoutDirection) points PERPENDICULAR to the board surface, so a local-axis arc
+        /// bows off/through the board (the bug AnimateCelebration already worked around). A world-up bow
+        /// always rises on screen and descends into the slot — a clean golf-shot lob from the hand.
+        ///
+        /// <paramref name="apexClearance"/> is how far (world units) the apex sits ABOVE the HIGHER of the
+        /// two endpoints. The bow magnitude is derived so the peak is guaranteed above both the start
+        /// (hand) and the end (board slot) by exactly this much — "rise a little above hand AND board,
+        /// then drop in" regardless of how far apart they are. Snaps instantly if duration ≤ 0.
+        /// </summary>
+        public IEnumerator AnimateWorldArcTo(Vector3 targetLocalPos, Quaternion targetLocalRot, float duration, float apexClearance, Func<float, float> ease, bool emitTrail = false, Vector3 lateralDir = default, float lateralBow = 0f)
+        {
+            if (duration <= 0f || !gameObject.activeInHierarchy)
+            {
+                transform.localPosition = targetLocalPos;
+                transform.localRotation = targetLocalRot;
+                yield break;
+            }
+
+            if (emitTrail) SetTrailEmitting(true);
+
+            // Optional SIDEWAYS curve (bowling-throw hook): a parabolic bow along lateralDir that peaks at
+            // mid-flight and returns to 0 at both ends, so the piece swings out to one side and curves back
+            // into the slot. Magnitude/direction set by the caller per clicked-column position.
+            bool hasLateral = lateralBow != 0f && lateralDir.sqrMagnitude > 1e-6f;
+            Vector3 latUnit = hasLateral ? lateralDir.normalized : Vector3.zero;
+
+            Transform parent = transform.parent;
+            Vector3 startWorld = transform.position;
+            Vector3 endWorld = parent != null ? parent.TransformPoint(targetLocalPos) : targetLocalPos;
+            Quaternion startLocalRot = transform.localRotation;
+
+            // Bow height so the apex (parabola peak at raw = 0.5) lands apexClearance above the higher
+            // endpoint. Peak world-Y = midY + H, and we want it = max(startY, endY) + clearance, so:
+            float midY = (startWorld.y + endWorld.y) * 0.5f;
+            float higherY = Mathf.Max(startWorld.y, endWorld.y);
+            float H = (higherY - midY) + Mathf.Max(0f, apexClearance);
+
+            float t = 0f;
+            while (t < duration)
+            {
+                t += Time.deltaTime;
+                float raw = Mathf.Clamp01(t / duration);
+                float u = ease == null ? raw : ease(raw);
+                Vector3 linear = Vector3.LerpUnclamped(startWorld, endWorld, u);
+                // Symmetric parabola in time (raw, not eased) so the apex stays at the midpoint.
+                float arcShape = 4f * raw * (1f - raw);
+                float bow = arcShape * H;
+                Vector3 lat = hasLateral ? latUnit * (arcShape * lateralBow) : Vector3.zero;
+                transform.position = linear + Vector3.up * bow + lat;
+                transform.localRotation = Quaternion.Slerp(startLocalRot, targetLocalRot, raw);
+                yield return null;
+            }
+            // Snap to the exact LOCAL target so float error doesn't leave the piece off-slot
+            // (callers may not re-Layout, e.g. DoMoveAnimated relies on this final position).
+            transform.localPosition = targetLocalPos;
+            transform.localRotation = targetLocalRot;
+
+            if (emitTrail) SetTrailEmitting(false);
+        }
+
+        /// <summary>
         /// Questionmark-reveal animation. Parabolic hop along <paramref name="hopDirLocal"/> with rotation
         /// around <paramref name="flipAxisWorld"/>. At <paramref name="revealAt"/> normalized time (default
         /// 0.5 — the apex of the hop), the piece flips its `revealed` flag to true and re-applies its
@@ -584,9 +668,14 @@ namespace Sort
         /// the piece is tilted by board rotation or has a non-identity RestRotation.
         /// Returns to the starting localPosition / localRotation when done.
         /// </summary>
-        public IEnumerator AnimateCelebrate(float duration, float hopDistance, Vector3 hopDirLocal, Vector3 flipAxisWorld, float totalRotationDegrees = 360f)
+        public IEnumerator AnimateCelebrate(float duration, float hopDistance, Vector3 hopDirLocal, Vector3 flipAxisWorld, float totalRotationDegrees = 360f, float startDelay = 0f)
         {
             if (duration <= 0f) yield break;
+
+            // Stagger support: when the column cascades the celebration top→bottom, each piece waits a
+            // bit before starting so the spins fire as a ripple. Captured AFTER the wait so a piece that
+            // gets nudged in the meantime still hops from where it actually sits.
+            if (startDelay > 0f) yield return new WaitForSeconds(startDelay);
 
             Vector3 startLocalPos = transform.localPosition;
             Quaternion startRotWorld = transform.rotation;

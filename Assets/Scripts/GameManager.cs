@@ -24,7 +24,22 @@ namespace Sort
 
         [Header("End-game UI")]
         [SerializeField] private GameObject winPanel;
+        [Tooltip("The 'You Failed!' panel. Shown after the player runs out of moves AND declines the " +
+                 "Out-of-Moves continue. Deducts 1 life; its Retry button calls Restart().")]
         [SerializeField] private GameObject losePanel;
+
+        [Header("Out of Moves (continue offer)")]
+        [Tooltip("Shown FIRST when the player runs out of moves — offers a paid/ad continue before failing. " +
+                 "If null, running out of moves goes straight to the You Failed (lose) panel.")]
+        [SerializeField] private GameObject outOfMovesPanel;
+        [Tooltip("Coin cost of the 'Play on' (coins) continue button.")]
+        [SerializeField] private int continueCoinCost = 900;
+        [Tooltip("How many extra moves a continue (coins or ad) grants.")]
+        [SerializeField] private int continueMovesBonus = 10;
+        [Tooltip("Fired when the player taps 'Play on (Ads)'. Hook your rewarded-ad SDK here; on ad SUCCESS " +
+                 "call GrantContinue(). (ContinueWithAd() currently grants immediately as a placeholder — " +
+                 "replace that with a real ad gate when the SDK is integrated.)")]
+        [SerializeField] private UnityEvent onRequestRewardedAd;
 
         [Header("Events")]
         [SerializeField] private UnityEvent onWin;
@@ -36,7 +51,11 @@ namespace Sort
 
         public bool IsWon { get; private set; }
         public bool IsLost { get; private set; }
-        public bool IsGameOver => IsWon || IsLost;
+        // True while the Out-of-Moves panel is up awaiting the player's decision. Folded into IsGameOver
+        // so it blocks board input (PlayerHand) + skills (SkillManager) without extra wiring; cleared on
+        // continue (resume) or decline (→ Lose).
+        bool awaitingContinue;
+        public bool IsGameOver => IsWon || IsLost || awaitingContinue;
         public int MovesRemaining => Mathf.Max(0, moveLimit - movesUsed);
         public IReadOnlyList<Column> Columns => columns;
 
@@ -72,6 +91,7 @@ namespace Sort
 
             if (winPanel != null) winPanel.SetActive(false);
             if (losePanel != null) losePanel.SetActive(false);
+            if (outOfMovesPanel != null) outOfMovesPanel.SetActive(false);
             UpdateMovesUI();
         }
 
@@ -94,7 +114,60 @@ namespace Sort
             movesUsed++;
             UpdateMovesUI();
             if (!IsWon && moveLimit > 0 && movesUsed >= moveLimit)
-                Lose();
+                HandleOutOfMoves();
+        }
+
+        // ---------------------------------------------------------------------
+        //  Out of Moves → continue (coins / ad) or fail. The board behind is blocked because awaitingContinue
+        //  folds into IsGameOver (PlayerHand + SkillManager already gate on it). The Out-of-Moves panel should
+        //  also have a full-screen raycast-blocking backdrop so UI behind it can't be tapped.
+        // ---------------------------------------------------------------------
+
+        /// <summary>Ran out of moves. Show the continue offer; if no panel is wired, fail immediately.</summary>
+        void HandleOutOfMoves()
+        {
+            if (IsGameOver) return;
+            if (outOfMovesPanel == null) { Lose(); return; }   // fallback: straight to You Failed
+            awaitingContinue = true;                            // blocks input + skills (via IsGameOver)
+            outOfMovesPanel.SetActive(true);
+            StateChanged?.Invoke();                             // refresh skill buttons to disabled
+        }
+
+        /// <summary>'Play on (coins)' — spend the cost, then continue. No-op if not enough coins.</summary>
+        public void ContinueWithCoins()
+        {
+            if (!awaitingContinue) return;
+            if (!PlayerEconomy.TrySpendCoins(continueCoinCost)) return; // not enough → button does nothing
+            GrantContinue();
+        }
+
+        /// <summary>'Play on (Ads)' — placeholder grants immediately. Wire onRequestRewardedAd to a real
+        /// rewarded-ad SDK and call GrantContinue() ONLY on ad success instead of granting here.</summary>
+        public void ContinueWithAd()
+        {
+            if (!awaitingContinue) return;
+            onRequestRewardedAd?.Invoke();
+            GrantContinue();   // TODO: move this into the ad-success callback once a real ad SDK is wired.
+        }
+
+        /// <summary>Adds the bonus moves, hides the panel, and resumes play (NO life lost, NO You Failed).</summary>
+        public void GrantContinue()
+        {
+            if (!awaitingContinue) return;
+            awaitingContinue = false;
+            moveLimit += continueMovesBonus;            // +N moves → MovesRemaining becomes N
+            if (outOfMovesPanel != null) outOfMovesPanel.SetActive(false);
+            UpdateMovesUI();
+            StateChanged?.Invoke();                     // re-enable skills
+        }
+
+        /// <summary>'X' / decline — close the offer and FAIL (deduct a life, show You Failed).</summary>
+        public void DeclineContinue()
+        {
+            if (!awaitingContinue) return;
+            awaitingContinue = false;
+            if (outOfMovesPanel != null) outOfMovesPanel.SetActive(false);
+            Lose();   // You Failed: deducts 1 life + shows losePanel
         }
 
         /// <summary>
@@ -173,25 +246,46 @@ namespace Sort
                 // a completed column.
                 if (col.IsLocked) continue;
 
-                // Lock Color Stack counts only columns completed in the required color; plain Break Wall
-                // Stack counts every locked column (the global lockedCount). Use the AUTHORED spec
-                // (Initial*) so the values survive an Unfreeze for the re-freeze path below.
-                int progress = col.InitialFrozenLockColor
-                    ? CountLockedOfColor(col.InitialFrozenRequiredColor, col)
-                    : lockedCount;
+                // THREE unlock conditions. Break Wall Stack (neighbor mode): breaks once its ADJACENT columns
+                // (left + right; edge column needs only its single neighbor) are LOCKED. Otherwise count-based:
+                // Frozen counts ANY locked columns vs threshold; Lock Color Stack counts locked columns of the
+                // required color. Use the AUTHORED spec (Initial*) so values survive an Unfreeze (Rewind re-freeze).
+                bool shouldBeFrozen;
+                int remaining;   // shown on the overlay number
+                if (col.InitialFrozenNeighborMode)
+                {
+                    bool hasLeft  = i > 0;
+                    bool hasRight = i < columns.Count - 1;
+                    bool leftDone  = !hasLeft  || (columns[i - 1] != null && columns[i - 1].IsLocked);
+                    bool rightDone = !hasRight || (columns[i + 1] != null && columns[i + 1].IsLocked);
+                    shouldBeFrozen = !(leftDone && rightDone);
+                    // How many EXISTING neighbors are still unsolved (interior 2 → 0, edge 1 → 0).
+                    remaining = ((hasLeft && !leftDone) ? 1 : 0) + ((hasRight && !rightDone) ? 1 : 0);
+                }
+                else
+                {
+                    // Frozen (count ANY locked columns) OR Lock Color Stack (count locked of a specific color).
+                    int progress = col.InitialFrozenLockColor
+                        ? CountLockedOfColor(col.InitialFrozenRequiredColor, col)
+                        : lockedCount;
+                    shouldBeFrozen = progress < col.InitialFrozenThreshold;
+                    remaining = col.InitialFrozenThreshold - progress;
+                }
 
-                bool shouldBeFrozen = progress < col.InitialFrozenThreshold;
                 var overlay = col.GetComponentInChildren<FrozenOverlay>(true);
 
                 if (shouldBeFrozen)
                 {
                     // Re-freeze if a Rewind reopened this gate (no-op via the IsFrozen check if already frozen).
                     if (!col.IsFrozen)
-                        col.Freeze(col.InitialFrozenThreshold, col.InitialFrozenLockColor, col.InitialFrozenRequiredColor);
+                    {
+                        if (col.InitialFrozenNeighborMode) col.FreezeNeighbors();
+                        else col.Freeze(col.InitialFrozenThreshold, col.InitialFrozenLockColor, col.InitialFrozenRequiredColor);
+                    }
                     if (overlay != null)
                     {
                         if (!overlay.gameObject.activeSelf) overlay.gameObject.SetActive(true);
-                        overlay.SetRemaining(col.InitialFrozenThreshold - progress);
+                        overlay.SetRemaining(remaining);
                     }
                 }
                 else

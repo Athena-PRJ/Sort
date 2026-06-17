@@ -22,10 +22,17 @@ namespace Sort
         [SerializeField] private Button rewindButton;
         [Tooltip("Optional lock overlay GameObject (e.g. an Image with Lock.png) on the Rewind button. Stays hidden since Rewind is always unlocked.")]
         [SerializeField] private GameObject rewindLockOverlay;
+        [Tooltip("Root of the UNLOCKED-state visuals — e.g. BoosterStroke (which parents Booster → UsageCount). " +
+                 "Shown when usable, hidden when the lock overlay is shown; disabling it cascades to its children, " +
+                 "so ONE toggle hides the whole coin. Rewind is always unlocked, so this stays on.")]
+        [SerializeField] private GameObject rewindUnlockedVisuals;
 
         [Header("Switch (Skill 2 — unlocks per LevelData flag)")]
         [SerializeField] private Button switchButton;
         [SerializeField] private GameObject switchLockOverlay;
+        [Tooltip("Root of the UNLOCKED-state visuals (e.g. BoosterStroke → Booster → UsageCount). Shown only " +
+                 "when the skill is unlocked; hidden (with the lock overlay shown) while locked.")]
+        [SerializeField] private GameObject switchUnlockedVisuals;
         [Tooltip("Text label that shows the unlock-level number while the skill is locked (e.g. 'Lvl 5'). Hidden once unlocked.")]
         [SerializeField] private TMP_Text switchUnlockedLevelText;
         [Tooltip("Badge text that shows the count of stored Switch uses (PlayerEconomy.SwitchUses). " +
@@ -35,6 +42,9 @@ namespace Sort
         [Header("Magnet (Skill 3 — unlocks per LevelData flag)")]
         [SerializeField] private Button magnetButton;
         [SerializeField] private GameObject magnetLockOverlay;
+        [Tooltip("Root of the UNLOCKED-state visuals (e.g. BoosterStroke → Booster → UsageCount). Shown only " +
+                 "when the skill is unlocked; hidden (with the lock overlay shown) while locked.")]
+        [SerializeField] private GameObject magnetUnlockedVisuals;
         [Tooltip("Text label that shows the unlock-level number while the skill is locked. Hidden once unlocked.")]
         [SerializeField] private TMP_Text magnetUnlockedLevelText;
         [Tooltip("Badge text that shows the count of stored Magnet uses (PlayerEconomy.MagnetUses).")]
@@ -43,6 +53,12 @@ namespace Sort
         [Header("Lock label formatting")]
         [Tooltip("Format string for the locked-state label. {0} = unlock level number from EconomyConfig.")]
         [SerializeField] private string unlockedLevelFormat = "Lvl {0}";
+
+        [Header("Tester / dev build")]
+        [Tooltip("Tester convenience: when ON, every skill is UNLOCKED and topped up with uses + coins on " +
+                 "Start — so a device build can try all skills without grinding the unlock levels. Tops up to " +
+                 "99 uses / 99999 coins (won't grow unbounded across launches). TURN OFF for the real release.")]
+        [SerializeField] private bool devUnlockAllForTesting = false;
 
         [Header("Buy-uses dialog")]
         [Tooltip("Optional reference to the BuyUsesPanel that appears when the player taps a skill with 0 stored uses. " +
@@ -59,19 +75,41 @@ namespace Sort
             var loader = LevelLoader.Instance;
             rewindUsesLeft = loader?.CurrentLevel != null ? loader.CurrentLevel.freeRewindUses : 1;
 
-            // Wire button clicks programmatically — independent of Inspector onClick fields. The
-            // Inspector wiring is fragile (easy to forget, doesn't show up in code review).
-            // RemoveAllListeners drops only runtime listeners (Inspector "persistent" ones stay),
-            // so this is a no-op if the designer also wired via Inspector — calling UseX twice is
-            // logically idempotent for these methods (the second call toggles back to None mode).
-            // Safer to just CLEAR Inspector onClick wiring and rely on this code path.
-            if (rewindButton != null) { rewindButton.onClick.RemoveAllListeners(); rewindButton.onClick.AddListener(UseRewind); }
-            if (switchButton != null) { switchButton.onClick.RemoveAllListeners(); switchButton.onClick.AddListener(UseSwitch); }
-            if (magnetButton != null) { magnetButton.onClick.RemoveAllListeners(); magnetButton.onClick.AddListener(UseMagnet); }
+            // Wire button clicks programmatically — but ONLY when the designer has NOT already wired the
+            // same call via the Inspector's On Click () list. RemoveAllListeners() drops only runtime
+            // listeners; an Inspector "persistent" listener survives it, so blindly AddListener-ing on top
+            // of an Inspector-wired button fires the method TWICE per click. For Switch/Magnet that means
+            // "enter skill mode" then immediately "cancel skill mode" → the skill appears to do nothing.
+            // Guarding on GetPersistentEventCount() makes us robust to EITHER setup (Inspector-wired or
+            // not) and guarantees exactly one invocation per click.
+            WireSkillButton(rewindButton, UseRewind);
+            WireSkillButton(switchButton, UseSwitch);
+            WireSkillButton(magnetButton, UseMagnet);
+        }
+
+        /// <summary>Adds the runtime onClick listener only if the button isn't already wired in the
+        /// Inspector — prevents the double-invocation that silently cancels Switch/Magnet skill mode.</summary>
+        static void WireSkillButton(Button button, UnityEngine.Events.UnityAction handler)
+        {
+            if (button == null) return;
+            button.onClick.RemoveAllListeners();                 // clear any stale runtime listeners
+            if (button.onClick.GetPersistentEventCount() == 0)   // no Inspector wiring → wire in code
+                button.onClick.AddListener(handler);
         }
 
         void Start()
         {
+            // Tester build: unlock + stock every skill so the device build can try them all. Tops up to a
+            // target instead of adding each launch, so repeated launches don't grow the stockpile unbounded.
+            if (devUnlockAllForTesting)
+            {
+                SkillProgress.Unlock(SkillType.Switch);
+                SkillProgress.Unlock(SkillType.Magnet);
+                if (PlayerEconomy.SwitchUses < 99) PlayerEconomy.AddSwitchUses(99 - PlayerEconomy.SwitchUses);
+                if (PlayerEconomy.MagnetUses < 99) PlayerEconomy.AddMagnetUses(99 - PlayerEconomy.MagnetUses);
+                if (PlayerEconomy.Coins < 99999) PlayerEconomy.AddCoins(99999 - PlayerEconomy.Coins);
+            }
+
             // Subscribe to events that can change a skill button's state.
             if (PlayerHand.Instance != null)
             {
@@ -272,12 +310,15 @@ namespace Sort
             bool rewindTarget = CanUseRewind;
             if (rewindButton != null) rewindButton.interactable = rewindTarget;
             if (rewindLockOverlay != null) rewindLockOverlay.SetActive(false);
+            if (rewindUnlockedVisuals != null) rewindUnlockedVisuals.SetActive(true);
 
             // Switch — locked label OR stock badge.
             bool switchUnlocked = SkillProgress.IsUnlocked(SkillType.Switch);
             bool switchTarget = switchUnlocked && CanUseSwitch;
             if (switchButton != null) switchButton.interactable = switchTarget;
             if (switchLockOverlay != null) switchLockOverlay.SetActive(!switchUnlocked);
+            // Hide the coin visuals (BoosterStroke → Booster → UsageCount cascade) while locked.
+            if (switchUnlockedVisuals != null) switchUnlockedVisuals.SetActive(switchUnlocked);
             UpdateUnlockedLevelLabel(switchUnlockedLevelText, switchUnlocked, SkillType.Switch);
             UpdateUsesBadge(switchUsesBadge, switchUnlocked, PlayerEconomy.SwitchUses);
 
@@ -286,6 +327,7 @@ namespace Sort
             bool magnetTarget = magnetUnlocked && CanUseMagnet;
             if (magnetButton != null) magnetButton.interactable = magnetTarget;
             if (magnetLockOverlay != null) magnetLockOverlay.SetActive(!magnetUnlocked);
+            if (magnetUnlockedVisuals != null) magnetUnlockedVisuals.SetActive(magnetUnlocked);
             UpdateUnlockedLevelLabel(magnetUnlockedLevelText, magnetUnlocked, SkillType.Magnet);
             UpdateUsesBadge(magnetUsesBadge, magnetUnlocked, PlayerEconomy.MagnetUses);
 

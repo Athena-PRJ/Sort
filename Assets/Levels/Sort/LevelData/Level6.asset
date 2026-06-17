@@ -15,55 +15,54 @@ MonoBehaviour:
   levelNumber: 6
   difficulty: 1
   piecePrefab: {fileID: 2697371083170223703, guid: 12b960f967f10bf4dad210ed95c13691, type: 3}
-  theme: 0
-  mainBoardSprite: {fileID: 21300000, guid: 4608f4f5dfeb7634b97c66817cbb14b8, type: 3}
-  backgroundSprite: {fileID: 0}
+  paletteStyle: 0
+  themeSet: {fileID: 11400000, guid: 7fce16fb7123f524b82a9c3c6e6c7ef9, type: 2}
   moveLimit: 15
   startingHeldPiece:
-    color: 0
-    isRainbow: 0
+    color: White
+    isRainbow: 1
     isQuestionmark: 0
   columns:
   - pieces:
-    - color: 1
+    - color: Pink
       isRainbow: 0
       isQuestionmark: 0
-    - color: 2
+    - color: Lime
       isRainbow: 0
       isQuestionmark: 0
-    - color: 1
-      isRainbow: 0
-      isQuestionmark: 0
-    - color: 0
-      isRainbow: 0
-      isQuestionmark: 0
+    lockColorStack: 0
+    requiredColor: 
+    lockColorUnlockThreshold: 1
+    onlyStackSort: 0
+    onlyStackColor: 
   - pieces:
-    - color: 2
+    - color: Lime
       isRainbow: 0
       isQuestionmark: 0
-    - color: 1
+    - color: Magenta
       isRainbow: 0
       isQuestionmark: 0
-    - color: 0
-      isRainbow: 0
-      isQuestionmark: 0
-    - color: 2
-      isRainbow: 0
-      isQuestionmark: 0
+    lockColorStack: 0
+    requiredColor: 
+    lockColorUnlockThreshold: 1
+    onlyStackSort: 0
+    onlyStackColor: 
   - pieces:
-    - color: 0
+    - color: Magenta
       isRainbow: 0
       isQuestionmark: 0
-    - color: 1
+    - color: Pink
       isRainbow: 0
       isQuestionmark: 0
-    - color: 1
-      isRainbow: 0
-      isQuestionmark: 0
-    - color: 2
-      isRainbow: 0
-      isQuestionmark: 0
-  nextLevel: {fileID: 0}
+    lockColorStack: 0
+    requiredColor: 
+    lockColorUnlockThreshold: 1
+    onlyStackSort: 0
+    onlyStackColor: 
+  ties: []
+  frozenColumns:
+  - columnIndex: 0
+  nextLevel: {fileID: 11400000, guid: bd09a2d114006024b9d79b92931575e4, type: 2}
   questionmarkRevealFromBottom: 1
   coinReward: 50
   freeRewindUses: 1

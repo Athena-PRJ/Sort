@@ -67,6 +67,15 @@ namespace Sort
         [Tooltip("SpriteRenderer sorting order (tick draws at +1 so it sits over the done icon).")]
         [SerializeField] private int indicatorSortingOrder = 10;
 
+        [Header("Indicator sprites (fixed — generated per column)")]
+        [Tooltip("These are the ONLY runtime-generated visuals: one set per column, so their COUNT follows " +
+                 "the level's column count. The sprites themselves don't change per level, so assign them " +
+                 "ONCE here (not per LevelData). Colors come from the level's UI Theme Palette via the radiant.")]
+        [SerializeField] private Sprite inSprite;       // always-visible status FRAME ('In' slot)
+        [SerializeField] private Sprite notDoneSprite;  // marker inside the In frame while unsolved
+        [SerializeField] private Sprite tickSprite;     // shown on lock
+        [SerializeField] private Sprite outSprite;      // 'out' arrow below each column
+
         // Per-grid indicator tweaks (size multiplier + status/out offsets) live on LevelLoader.scaleOverrides
         // — the SAME per-grid list that tunes board scale — so one place fine-tunes the board + its indicators.
 
@@ -168,25 +177,33 @@ namespace Sort
                     ? transform.InverseTransformPoint(col.transform.position).x
                     : cen.x + (cols <= 1 ? 0f : Mathf.Lerp(-halfW, halfW, (float)c / (cols - 1)) * 0.8f);
 
-                // Top status: the DONE sprite is the always-visible FRAME (the slot). The not-done icon
+                // Top status: the IN sprite is the always-visible FRAME (the slot). The not-done icon
                 // sits INSIDE it while the column is unsolved; on lock ColumnIndicator hides not-done and
                 // shows the tick. Sizes are divided by MainBoard's scale to undo its non-uniform image-fit.
-                Sprite frameSprite = level.doneSprite != null ? level.doneSprite : level.notDoneSprite;
+                Sprite frameSprite = inSprite != null ? inSprite : notDoneSprite;
                 if (frameSprite != null)
                 {
                     var sPos = new Vector3(colX, statusY, liftZ) + statusIconOffset + statusExtra;
                     var frameGO = Spawn(frameSprite, sPos, rot, new Vector3(doneScale / mbx, doneScale / mby, 1f), indicatorSortingOrder);
+                    // In frame uses the PRIMARY radiant (from the level's theme set): a vertical gradient that
+                    // REPLACES the sprite's colors (exact), keeping only its shape. Shared with the Out
+                    // arrows below so the board indicators read as one synchronized theme.
+                    ApplyRadiant(frameGO, level.GetThemeColor(UiThemeSlot.Primary));
 
-                    // Inner not-done — only when there's a distinct done frame for it to sit inside.
+                    // Inner not-done — only when there's a distinct In frame for it to sit inside.
                     GameObject notDoneGO = null;
-                    if (level.doneSprite != null && level.notDoneSprite != null)
-                        notDoneGO = Spawn(level.notDoneSprite, sPos, rot, new Vector3(notDoneScale / mbx, notDoneScale / mby, 1f), indicatorSortingOrder + 1);
+                    if (inSprite != null && notDoneSprite != null)
+                    {
+                        notDoneGO = Spawn(notDoneSprite, sPos, rot, new Vector3(notDoneScale / mbx, notDoneScale / mby, 1f), indicatorSortingOrder + 1);
+                        // Not Done uses the SECONDARY radiant (independent of the In frame's Primary).
+                        ApplyRadiant(notDoneGO, level.GetThemeColor(UiThemeSlot.Secondary));
+                    }
 
                     // Inner tick (shown on lock).
                     GameObject tickGO = null;
-                    if (level.tickSprite != null)
+                    if (tickSprite != null)
                     {
-                        tickGO = Spawn(level.tickSprite, sPos, rot, new Vector3(tickS / mbx, tickS / mby, 1f), indicatorSortingOrder + 1);
+                        tickGO = Spawn(tickSprite, sPos, rot, new Vector3(tickS / mbx, tickS / mby, 1f), indicatorSortingOrder + 1);
                         tickGO.SetActive(false);
                     }
 
@@ -195,11 +212,53 @@ namespace Sort
                 }
 
                 // Bottom out arrow.
-                if (level.outSprite != null)
+                if (outSprite != null)
                 {
                     var oPos = new Vector3(colX, outY, liftZ) + outExtra;
-                    Spawn(level.outSprite, oPos, rot, new Vector3(outScale / mbx, outScale / mby, 1f), indicatorSortingOrder);
+                    var outGO = Spawn(outSprite, oPos, rot, new Vector3(outScale / mbx, outScale / mby, 1f), indicatorSortingOrder);
+                    // Out arrows share the PRIMARY radiant with the In frames (one synced theme).
+                    ApplyRadiant(outGO, level.GetThemeColor(UiThemeSlot.Primary));
                 }
+            }
+        }
+
+        // Shared material for the In frame's solid-color replacement. One instance reused across all
+        // frames — the per-column color comes from each SpriteRenderer.color (_RendererColor), which is
+        // per-renderer even with a shared material. Null if the shader isn't found (caller falls back).
+        static Material _solidTintMat;
+        static Material SolidTintMaterial()
+        {
+            if (_solidTintMat == null)
+            {
+                var sh = Shader.Find("Sort/SpriteSolidTint");
+                if (sh != null) _solidTintMat = new Material(sh) { name = "InFrameSolidTint (runtime)" };
+            }
+            return _solidTintMat;
+        }
+
+        // Applies a radiant (top→bottom gradient) to a spawned indicator SpriteRenderer: swaps in the
+        // solid-tint material and sets _TopColor/_BottomColor per-renderer via a MaterialPropertyBlock
+        // (so one shared material serves every indicator with its own colors). Falls back to a flat
+        // multiply tint (sr.color) if the shader is missing, so the indicator still draws.
+        void ApplyRadiant(GameObject go, GradientColor g)
+        {
+            if (go == null || g == null) return;
+            var sr = go.GetComponent<SpriteRenderer>();
+            if (sr == null) return;
+
+            var mat = SolidTintMaterial();
+            if (mat != null)
+            {
+                sr.sharedMaterial = mat;
+                var mpb = new MaterialPropertyBlock();
+                sr.GetPropertyBlock(mpb);
+                mpb.SetColor("_TopColor", g.top);
+                mpb.SetColor("_BottomColor", g.bottom);
+                sr.SetPropertyBlock(mpb);
+            }
+            else
+            {
+                sr.color = g.top;   // fallback: flat multiply tint with the top color
             }
         }
 

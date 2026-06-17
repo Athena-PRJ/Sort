@@ -56,23 +56,29 @@ namespace Sort.EditorTools
         }
 
         /// <summary>
-        /// Color names offered in the dropdown = the UNION of the prefab's Pastel + Plain palette names.
-        /// The two palettes are meant to share the same color NAMES (just different textures), so naming
-        /// EITHER one populates the dropdown for BOTH styles — the designer names a color once. Keep the
-        /// names consistent across the two palettes so a style swap always finds a matching texture.
+        /// Color names offered in the dropdown = ONLY the palette matching the level's current
+        /// <see cref="LevelData.paletteStyle"/> (Pastel → palettePastel, Plain → palettePlain). The two
+        /// palettes can define different color sets, so the dropdown must reflect just the active style —
+        /// switching Palette Style live re-filters the list. Defensive fallback: if the selected style's
+        /// palette is unassigned or empty, fall back to the OTHER one so the designer isn't trapped with
+        /// an empty dropdown (normal levels assign both, so this only triggers on a half-set-up prefab).
         /// </summary>
         static List<string> ResolveColorNames(SerializedProperty property)
         {
             var level = property.serializedObject.targetObject as LevelData;
             if (level == null || level.piecePrefab == null) return null;
 
-            var registry = LoadFirstRegistry();
+            var registry = RegistryCache.Registry;   // cached — no per-repaint AssetDatabase scan
             if (registry == null) return null;
             if (!registry.TryGetEntry(level.piecePrefab, out var entry)) return null;
 
+            ColorPalette selected = level.paletteStyle == PaletteStyle.Plain ? entry.palettePlain : entry.palettePastel;
+            ColorPalette other    = level.paletteStyle == PaletteStyle.Plain ? entry.palettePastel : entry.palettePlain;
+
             var names = new List<string>();
-            AddNames(names, entry.palettePastel);
-            AddNames(names, entry.palettePlain);
+            AddNames(names, selected);
+            // Only show the other style's colors if the selected one gave us nothing (avoids trapping).
+            if (names.Count == 0) AddNames(names, other);
             return names;
         }
 
@@ -81,14 +87,6 @@ namespace Sort.EditorTools
             if (palette == null) return;
             foreach (var n in palette.ColorNames())
                 if (!into.Contains(n)) into.Add(n);
-        }
-
-        static PrefabRegistry LoadFirstRegistry()
-        {
-            var guids = AssetDatabase.FindAssets("t:" + nameof(PrefabRegistry));
-            if (guids == null || guids.Length == 0) return null;
-            var path = AssetDatabase.GUIDToAssetPath(guids[0]);
-            return AssetDatabase.LoadAssetAtPath<PrefabRegistry>(path);
         }
     }
 }

@@ -265,6 +265,8 @@ MonoBehaviour:
   questionmarkDisplayColor: {r: 0.55, g: 0.55, b: 0.6, a: 1}
   trail: {fileID: 0}
   trailWidthPercent: 1
+  trailLocalOffset: {x: 0, y: 2, z: 0}
+  trailSortingOrder: 50
 --- !u!96 &1307673331676900875
 TrailRenderer:
   serializedVersion: 4

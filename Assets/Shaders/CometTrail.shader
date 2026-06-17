@@ -21,6 +21,7 @@ Shader "Sort/CometTrail"
 
         Blend SrcAlpha One      // additive glow
         ZWrite Off
+        ZTest Always            // never occluded by the board / pieces it flies over (draws on top)
         Cull Off
 
         Pass

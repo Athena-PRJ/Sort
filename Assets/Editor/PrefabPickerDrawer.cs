@@ -27,7 +27,7 @@ namespace Sort.EditorTools
                 return;
             }
 
-            var registry = LoadFirstRegistry();
+            var registry = RegistryCache.Registry;   // cached — no per-repaint AssetDatabase scan
             if (registry == null)
             {
                 using (new EditorGUI.DisabledScope(true))
@@ -79,19 +79,6 @@ namespace Sort.EditorTools
             }
 
             GUI.contentColor = savedColor;
-        }
-
-        /// <summary>
-        /// Loads the first PrefabRegistry asset found via AssetDatabase. Multiple registries are
-        /// not supported — keep one canonical registry per project. AssetDatabase search runs at
-        /// edit-time only; doesn't ship in build.
-        /// </summary>
-        static PrefabRegistry LoadFirstRegistry()
-        {
-            var guids = AssetDatabase.FindAssets("t:" + nameof(PrefabRegistry));
-            if (guids == null || guids.Length == 0) return null;
-            var path = AssetDatabase.GUIDToAssetPath(guids[0]);
-            return AssetDatabase.LoadAssetAtPath<PrefabRegistry>(path);
         }
     }
 }

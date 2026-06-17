@@ -15,95 +15,61 @@ MonoBehaviour:
   levelNumber: 5
   difficulty: 1
   piecePrefab: {fileID: 2697371083170223703, guid: 12b960f967f10bf4dad210ed95c13691, type: 3}
-  theme: 1
-  mainBoardSprite: {fileID: 21300000, guid: d324fbb057fd59c41b5aeb63549d11ae, type: 3}
-  backgroundSprite: {fileID: 0}
+  paletteStyle: 0
+  themeSet: {fileID: 11400000, guid: 7fce16fb7123f524b82a9c3c6e6c7ef9, type: 2}
   moveLimit: 30
   startingHeldPiece:
-    color: 0
+    color: Red
     isRainbow: 1
     isQuestionmark: 0
   columns:
   - pieces:
-    - color: 0
+    - color: Red
+      isRainbow: 0
+      isQuestionmark: 1
+    - color: Brown
+      isRainbow: 0
+      isQuestionmark: 1
+    - color: Green
       isRainbow: 0
       isQuestionmark: 0
-    - color: 1
-      isRainbow: 0
-      isQuestionmark: 1
-    - color: 2
-      isRainbow: 0
-      isQuestionmark: 1
-    - color: 3
-      isRainbow: 0
-      isQuestionmark: 1
-    - color: 5
-      isRainbow: 0
-      isQuestionmark: 0
+    lockColorStack: 0
+    requiredColor: 
+    lockColorUnlockThreshold: 1
+    onlyStackSort: 0
+    onlyStackColor: 
   - pieces:
-    - color: 1
+    - color: Red
+      isRainbow: 0
+      isQuestionmark: 1
+    - color: Brown
+      isRainbow: 0
+      isQuestionmark: 1
+    - color: Green
       isRainbow: 0
       isQuestionmark: 0
-    - color: 2
-      isRainbow: 0
-      isQuestionmark: 1
-    - color: 3
-      isRainbow: 0
-      isQuestionmark: 1
-    - color: 5
-      isRainbow: 0
-      isQuestionmark: 1
-    - color: 0
-      isRainbow: 0
-      isQuestionmark: 0
+    lockColorStack: 0
+    requiredColor: 
+    lockColorUnlockThreshold: 1
+    onlyStackSort: 0
+    onlyStackColor: 
   - pieces:
-    - color: 5
+    - color: Brown
+      isRainbow: 0
+      isQuestionmark: 1
+    - color: Green
+      isRainbow: 0
+      isQuestionmark: 1
+    - color: Red
       isRainbow: 0
       isQuestionmark: 0
-    - color: 0
-      isRainbow: 0
-      isQuestionmark: 1
-    - color: 1
-      isRainbow: 0
-      isQuestionmark: 1
-    - color: 2
-      isRainbow: 0
-      isQuestionmark: 1
-    - color: 3
-      isRainbow: 0
-      isQuestionmark: 0
-  - pieces:
-    - color: 3
-      isRainbow: 0
-      isQuestionmark: 0
-    - color: 5
-      isRainbow: 0
-      isQuestionmark: 1
-    - color: 0
-      isRainbow: 0
-      isQuestionmark: 1
-    - color: 1
-      isRainbow: 0
-      isQuestionmark: 1
-    - color: 2
-      isRainbow: 0
-      isQuestionmark: 0
-  - pieces:
-    - color: 2
-      isRainbow: 0
-      isQuestionmark: 0
-    - color: 3
-      isRainbow: 0
-      isQuestionmark: 1
-    - color: 5
-      isRainbow: 0
-      isQuestionmark: 1
-    - color: 0
-      isRainbow: 0
-      isQuestionmark: 1
-    - color: 1
-      isRainbow: 0
-      isQuestionmark: 0
+    lockColorStack: 0
+    requiredColor: 
+    lockColorUnlockThreshold: 1
+    onlyStackSort: 0
+    onlyStackColor: 
+  ties: []
+  frozenColumns: []
   nextLevel: {fileID: 11400000, guid: 512be25153688c44183463dd940855bc, type: 2}
   questionmarkRevealFromBottom: 1
   coinReward: 100

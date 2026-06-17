@@ -67,8 +67,18 @@ namespace Sort
         public static int GetUnlockLevel(SkillType skill)
         {
             if (skill == SkillType.Rewind) return 0;
+
+            // Prefer the LevelDatabase — it works in the MainMenu scene (no LevelLoader there) and is the
+            // single source of truth for milestones. Fall back to the in-game LevelLoader.nextLevel chain.
+            var db = LevelDatabase.Instance;
+            if (db != null)
+            {
+                int n = db.GetSkillUnlockNumber(skill);
+                if (n > 0) return n;
+            }
+
             if (_unlockLevelCache == null) BuildUnlockLevelCache();
-            return _unlockLevelCache != null && _unlockLevelCache.TryGetValue(skill, out var n) ? n : 0;
+            return _unlockLevelCache != null && _unlockLevelCache.TryGetValue(skill, out var c) ? c : 0;
         }
 
         /// <summary>

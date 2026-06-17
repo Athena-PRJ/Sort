@@ -14,15 +14,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Sort.LevelData
   levelNumber: 1
   difficulty: 0
-  piecePrefab: {fileID: 8595755308906869233, guid: dfdf8c852b0e5104184c4e0f60f2ebb9, type: 3}
+  piecePrefab: {fileID: 2697371083170223703, guid: 12b960f967f10bf4dad210ed95c13691, type: 3}
   paletteStyle: 0
-  mainBoardSprite: {fileID: 3286163911610860551, guid: 2b613ed660ad7d9499beeaf36598e242, type: 3}
-  backgroundSprite: {fileID: 3286163911610860551, guid: f46ac08a25209b44bbc3e7ca6543c9f4, type: 3}
-  outSprite: {fileID: 3286163911610860551, guid: 9b5822faff1a9584cb26e209a1f188d5, type: 3}
-  placeSprite: {fileID: 3286163911610860551, guid: f8456c2ba8063a7488bbb1e41cb8b3f9, type: 3}
-  notDoneSprite: {fileID: 3286163911610860551, guid: 32738118367467f4eaa7b8871cb38864, type: 3}
-  doneSprite: {fileID: 3286163911610860551, guid: 0e76e7708c1fe6e46885085b8cbb20fc, type: 3}
-  tickSprite: {fileID: 3286163911610860551, guid: 3ce02edf8c4000b4484c4d28e94fe4e0, type: 3}
+  themeSet: {fileID: 11400000, guid: 9d65a4569fa0b724b91b800c6f9f3b67, type: 2}
   moveLimit: 18
   startingHeldPiece:
     color: Blue
@@ -39,7 +33,7 @@ MonoBehaviour:
     - color: Yellow
       isRainbow: 0
       isQuestionmark: 0
-    - color: Cactus
+    - color: Lime
       isRainbow: 0
       isQuestionmark: 0
     lockColorStack: 0
@@ -54,10 +48,10 @@ MonoBehaviour:
     - color: Yellow
       isRainbow: 0
       isQuestionmark: 0
-    - color: Cactus
+    - color: Lime
       isRainbow: 0
       isQuestionmark: 0
-    - color: Cactus
+    - color: Lime
       isRainbow: 0
       isQuestionmark: 0
     lockColorStack: 0
@@ -66,7 +60,7 @@ MonoBehaviour:
     onlyStackSort: 0
     onlyStackColor: Magenta
   - pieces:
-    - color: Cactus
+    - color: Lime
       isRainbow: 0
       isQuestionmark: 1
     - color: Yellow
@@ -86,6 +80,8 @@ MonoBehaviour:
   ties:
   - columnA: 0
     row: 1
+  - columnA: 1
+    row: 2
   frozenColumns: []
   nextLevel: {fileID: 11400000, guid: ace7b5ee6540a5a48b6cb7dca8943cf4, type: 2}
   questionmarkRevealFromBottom: 1

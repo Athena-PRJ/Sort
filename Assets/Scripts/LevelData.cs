@@ -25,31 +25,11 @@ namespace Sort
                  "every level just toggles this enum to switch styles — no asset assignment per level.")]
         public PaletteStyle paletteStyle = PaletteStyle.Pastel;
 
-        [Tooltip("Frame sprite used for this level's board background. Assign one of Assets/Texture/FullBoard/ (MB_1, MB_2, MB_3, etc.) " +
-                 "to give each level its own board color. If left null, BoardFrame's own fallback sprite is used.")]
-        public Sprite mainBoardSprite;
-
-        [Tooltip("Background image displayed behind the gameplay for this level. Assign one of Assets/Texture/Background/ " +
-                 "(BG_1, BG_2, BG_3, etc.). If left null, BackgroundFrame's own fallback sprite is used.")]
-        public Sprite backgroundSprite;
-
-        [Tooltip("Per-column 'out' arrow shown BELOW each column (Assets/Updated/SVG/out 1·2·3). Pick the " +
-                 "variant matching this level's board theme. If null, no out arrow is shown.")]
-        public Sprite outSprite;
-
-        [Tooltip("Placemat shown UNDER the player's held piece (Assets/Updated/SVG/place 1·2·3). Pick the " +
-                 "variant matching this level's board theme. If null, the hand keeps its existing decoration sprite.")]
-        public Sprite placeSprite;
-
-        [Tooltip("Per-column status icon shown ABOVE each column while it is NOT yet solved " +
-                 "(Assets/Updated/SVG/not done). MainBoardBuilder spawns one per column.")]
-        public Sprite notDoneSprite;
-
-        [Tooltip("Per-column status icon shown ABOVE a column once it IS solved (replaces Not Done, same slot).")]
-        public Sprite doneSprite;
-
-        [Tooltip("Tick overlaid on the Done icon when a column is solved (Assets/Updated/SVG/tick).")]
-        public Sprite tickSprite;
+        [Header("UI Theme — radiant color set")]
+        [Tooltip("Pick a UI Theme Palette asset ('Bộ màu'). It defines the radiant COLOR slots (In+Out / " +
+                 "Not Done / Accent / Text / Backup) shared across this level's UI via UiRadiantTint. Sprites " +
+                 "are fixed in the scene now, not here. Leave null = white colors.")]
+        public UiThemePalette themeSet;
 
         [Tooltip("Maximum moves the player has before losing. 0 = unlimited.")]
         public int moveLimit = 20;
@@ -94,6 +74,22 @@ namespace Sort
         [Tooltip("If true, completing this level permanently unlocks the Magnet skill for the player. " +
                  "Multiple levels can be flagged — the skill unlocks the first time ANY flagged level is cleared.")]
         public bool unlocksMagnetOnCompletion = false;
+
+        /// <summary>Per-theme board frame sprite (from themeSet), or null.</summary>
+        public Sprite MainBoardSprite  => themeSet != null ? themeSet.mainBoardSprite  : null;
+        /// <summary>Per-theme background sprite (from themeSet), or null.</summary>
+        public Sprite BackgroundSprite => themeSet != null ? themeSet.backgroundSprite : null;
+
+        // White fallback shared across levels that haven't picked a themeSet (keeps GetThemeColor non-null).
+        static GradientColor _defaultTheme;
+
+        /// <summary>Returns the radiant for a theme slot from the assigned themeSet (never null —
+        /// falls back to white when no set is assigned).</summary>
+        public GradientColor GetThemeColor(UiThemeSlot slot)
+        {
+            if (themeSet != null) return themeSet.Get(slot);
+            return _defaultTheme ?? (_defaultTheme = new GradientColor());
+        }
 
         void OnValidate()
         {
@@ -211,6 +207,10 @@ namespace Sort
             // and there must be enough columns of it to fill every column restricted to that color.
             ValidateOnlyStackSort(result, rowCount);
 
+            // Rule 7 (tie vs special columns): a tie binds two adjacent columns so they move together,
+            // which is incompatible with ANY special-column mechanic (Frozen / Lock Color / Only Stack).
+            ValidateTieMechanicConflicts(result);
+
             return result;
         }
 
@@ -224,12 +224,12 @@ namespace Sort
             if (columns == null || columns.Length == 0 || rowCount <= 0) return;
 
             // Mechanic exclusivity: a column may use only ONE special mechanic. Only Stack Sort must
-            // not share a column with Lock Color Stack or a Break Wall (Frozen Columns) entry.
-            var breakWallIdx = new HashSet<int>();
+            // not share a column with Lock Color Stack, Break Wall Stack, or a Frozen Columns entry.
+            var frozenIdx = new HashSet<int>();
             if (frozenColumns != null)
                 foreach (var f in frozenColumns)
                     if (f != null && f.columnIndex >= 0 && f.columnIndex < columns.Length)
-                        breakWallIdx.Add(f.columnIndex);
+                        frozenIdx.Add(f.columnIndex);
             for (int i = 0; i < columns.Length; i++)
             {
                 var c = columns[i];
@@ -237,9 +237,12 @@ namespace Sort
                 if (c.lockColorStack)
                     result.errors.Add($"Column [{i}] uses BOTH Only Stack Sort and Lock Color Stack. A column may use " +
                                       $"only ONE special mechanic — untick one of them.");
-                if (breakWallIdx.Contains(i))
-                    result.errors.Add($"Column [{i}] uses BOTH Only Stack Sort and a Frozen (Break Wall) column. A column " +
-                                      $"may use only ONE special mechanic — remove it from Frozen Columns OR untick Only Stack Sort.");
+                if (c.breakWallStack)
+                    result.errors.Add($"Column [{i}] uses BOTH Only Stack Sort and Break Wall Stack. A column may use " +
+                                      $"only ONE special mechanic — untick one of them.");
+                if (frozenIdx.Contains(i))
+                    result.errors.Add($"Column [{i}] uses BOTH Only Stack Sort and Frozen. A column may use only ONE " +
+                                      $"special mechanic — remove it from Frozen Columns OR untick Only Stack Sort.");
             }
 
             var colorColumns = new Dictionary<string, int>();
@@ -272,6 +275,54 @@ namespace Sort
         }
 
         /// <summary>
+        /// A tie binds two ADJACENT columns (columnA and columnA+1) so their pieces move together. That is
+        /// fundamentally incompatible with ANY special-column mechanic — Frozen/Break Wall (the column must
+        /// stay inert until it unfreezes), Lock Color Stack (same), and Only Stack Sort (placement-restricted).
+        /// If a tie binds such a column, moving the tie drags the special column and tapping the frozen column
+        /// moves its tied partner — the Level4 bug. So: ERROR on any tie touching a special column. This is the
+        /// rule that guarantees Frozen (and the other mechanics) can never combine with Tie. When adding a NEW
+        /// mechanic later, mark its columns in the `special` map below so ties keep excluding it too.
+        /// </summary>
+        void ValidateTieMechanicConflicts(ValidationResult result)
+        {
+            if (ties == null || ties.Length == 0 || columns == null || columns.Length == 0) return;
+            int n = columns.Length;
+
+            // Label each special column (null = ordinary). First mechanic found wins the label; a column
+            // using two mechanics is already flagged by Rule 5a / Rule 6.
+            var special = new string[n];
+            if (frozenColumns != null)
+                foreach (var f in frozenColumns)
+                    if (f != null && f.columnIndex >= 0 && f.columnIndex < n)
+                        special[f.columnIndex] = "Frozen";
+            for (int i = 0; i < n; i++)
+            {
+                var c = columns[i];
+                if (c == null || special[i] != null) continue;
+                if (c.breakWallStack)     special[i] = "Break Wall Stack";
+                else if (c.lockColorStack) special[i] = "Lock Color Stack";
+                else if (c.onlyStackSort)  special[i] = "Only Stack Sort";
+            }
+
+            for (int i = 0; i < ties.Length; i++)
+            {
+                var t = ties[i];
+                if (t == null) continue;
+                if (t.columnA < 0 || t.columnA >= n - 1) continue; // out-of-range already errored in Rule 4
+
+                int a = t.columnA, b = t.columnA + 1;
+                if (special[a] != null)
+                    result.errors.Add($"Tie [{i}] binds column {a}, which is a {special[a]} column. A tie can't bind a " +
+                                      $"special/frozen column — moving the tie would drag it (and tapping the frozen column " +
+                                      $"would move its partner). Remove the tie, or remove the mechanic on column {a}.");
+                if (special[b] != null)
+                    result.errors.Add($"Tie [{i}] binds column {b}, which is a {special[b]} column. A tie can't bind a " +
+                                      $"special/frozen column — moving the tie would drag it (and tapping the frozen column " +
+                                      $"would move its partner). Remove the tie, or remove the mechanic on column {b}.");
+            }
+        }
+
+        /// <summary>
         /// Validates the two freeze mechanics together (Break Wall Stack + Lock Color Stack):
         ///   • a column can't use BOTH mechanics at once (error);
         ///   • a Lock Color threshold can't ask for more columns of a color than the level can make;
@@ -285,8 +336,13 @@ namespace Sort
             if (columns == null || columns.Length == 0 || rowCount <= 0) return;
             int n = columns.Length;
 
+            // THREE distinct gate mechanics (mutually exclusive per column):
+            //  • Frozen   (COUNT, frozenColumns)         → breaks when X ANY columns are completed.
+            //  • BreakWall(NEIGHBOR, ColumnConfig)       → breaks when its left+right neighbors complete.
+            //  • LockColor(COUNT of a color, ColumnConfig)→ breaks when X columns of requiredColor complete.
+            var isFrozen     = new bool[n];
+            var frozenT      = new int[n];
             var isBreakWall  = new bool[n];
-            var breakWallT   = new int[n];
             var isLockColor  = new bool[n];
             var lockColorT   = new int[n];
             var lockColorReq = new string[n];
@@ -301,29 +357,35 @@ namespace Sort
                         result.errors.Add($"Frozen Columns: columnIndex {f.columnIndex} is out of range [0, {n - 1}].");
                         continue;
                     }
-                    isBreakWall[f.columnIndex] = true;
-                    breakWallT[f.columnIndex]  = Mathf.Max(1, f.unlockThreshold);
+                    isFrozen[f.columnIndex] = true;
+                    frozenT[f.columnIndex]  = Mathf.Max(1, f.unlockThreshold);
                 }
             }
             for (int i = 0; i < n; i++)
             {
                 var c = columns[i];
-                if (c == null || !c.lockColorStack) continue;
-                isLockColor[i]  = true;
-                lockColorT[i]   = Mathf.Max(1, c.lockColorUnlockThreshold);
-                lockColorReq[i] = c.requiredColor;
+                if (c == null) continue;
+                if (c.breakWallStack) isBreakWall[i] = true;
+                if (c.lockColorStack)
+                {
+                    isLockColor[i]  = true;
+                    lockColorT[i]   = Mathf.Max(1, c.lockColorUnlockThreshold);
+                    lockColorReq[i] = c.requiredColor;
+                }
             }
 
             bool anyGate = false;
-            for (int i = 0; i < n; i++) if (isBreakWall[i] || isLockColor[i]) { anyGate = true; break; }
+            for (int i = 0; i < n; i++) if (isFrozen[i] || isBreakWall[i] || isLockColor[i]) { anyGate = true; break; }
             if (!anyGate) return;
 
-            // 5a: a column cannot be BOTH a Break Wall (frozenColumns) and an Lock Color Stack column.
+            // 5a: a column may use only ONE freeze mechanic (Frozen / Break Wall / Lock Color).
             for (int i = 0; i < n; i++)
-                if (isBreakWall[i] && isLockColor[i])
-                    result.errors.Add($"Column [{i}] is configured as BOTH a Frozen (Break Wall Stack) column AND an " +
-                                      $"Lock Color Stack column. A column can only use one freeze mechanic — remove it " +
-                                      $"from Frozen Columns OR untick Lock Color Stack on that column.");
+            {
+                int gates = (isFrozen[i] ? 1 : 0) + (isBreakWall[i] ? 1 : 0) + (isLockColor[i] ? 1 : 0);
+                if (gates > 1)
+                    result.errors.Add($"Column [{i}] uses MORE THAN ONE freeze mechanic (Frozen / Break Wall Stack / " +
+                                      $"Lock Color Stack). A column may use only ONE — keep one and remove the others.");
+            }
 
             // How many columns of each color the SOLVED board can make (each color fills count/rows columns).
             var colorColumns = new Dictionary<string, int>();
@@ -347,10 +409,10 @@ namespace Sort
 
             // 5c: need at least one initially-open column to make the first completion.
             int openCount = 0;
-            for (int i = 0; i < n; i++) if (!isBreakWall[i] && !isLockColor[i]) openCount++;
+            for (int i = 0; i < n; i++) if (!isFrozen[i] && !isBreakWall[i] && !isLockColor[i]) openCount++;
             if (openCount == 0)
             {
-                result.errors.Add("Every column is frozen (Break Wall and/or Lock Color) — there's no open column to " +
+                result.errors.Add("Every column is gated (Frozen / Break Wall / Lock Color) — there's no open column to " +
                                   "complete first, so nothing can ever unlock. Leave at least one column ungated.");
                 return; // reachability below is moot
             }
@@ -360,7 +422,7 @@ namespace Sort
             var unlocked = new bool[n];
             int unlockedCount = 0;
             for (int i = 0; i < n; i++)
-                if (!isBreakWall[i] && !isLockColor[i]) { unlocked[i] = true; unlockedCount++; }
+                if (!isFrozen[i] && !isBreakWall[i] && !isLockColor[i]) { unlocked[i] = true; unlockedCount++; }
 
             bool changed = true;
             while (changed)
@@ -371,8 +433,20 @@ namespace Sort
                 {
                     if (unlocked[i]) continue;
                     bool canUnlock = false;
-                    if (isBreakWall[i])
-                        canUnlock = lockedTotal >= breakWallT[i];
+                    if (isFrozen[i])
+                    {
+                        // Frozen (count): breaks once X ANY columns can be completed.
+                        canUnlock = lockedTotal >= frozenT[i];
+                    }
+                    else if (isBreakWall[i])
+                    {
+                        // Break Wall (neighbor): breaks once its EXISTING neighbors are reachable (so they
+                        // can be completed). Edge column needs only its single neighbor. Two ADJACENT break
+                        // walls each need the other → neither becomes reachable → flagged as a deadlock below.
+                        bool leftOk  = (i == 0)     || unlocked[i - 1];
+                        bool rightOk = (i == n - 1) || unlocked[i + 1];
+                        canUnlock = leftOk && rightOk;
+                    }
                     else if (isLockColor[i])
                     {
                         int availX = colorColumns.TryGetValue(lockColorReq[i], out int v) ? v : 0;
@@ -387,9 +461,10 @@ namespace Sort
             {
                 var stuck = new List<int>();
                 for (int i = 0; i < n; i++) if (!unlocked[i]) stuck.Add(i);
-                result.errors.Add($"Freeze deadlock: column(s) [{string.Join(", ", stuck)}] can never unlock by completing " +
-                                  $"others — the unlock thresholds are too high for any valid order. Lower their thresholds " +
-                                  $"or reduce how many columns are gated.");
+                result.errors.Add($"Freeze deadlock: column(s) [{string.Join(", ", stuck)}] can never unlock. " +
+                                  $"A Break Wall needs its neighbor(s) completed first — two ADJACENT Break Walls each wait " +
+                                  $"on the other (circular), or a Lock Color threshold is unreachable. Move a wall so it isn't " +
+                                  $"adjacent to another, leave a neighbor ungated, or lower a Lock Color threshold.");
             }
         }
 
@@ -444,27 +519,34 @@ namespace Sort
                  "is OFF. Make sure the level can actually fill this column with that color.")]
         [PaletteColor]
         public string onlyStackColor = "";
+
+        [Tooltip("BREAK WALL STACK: tick to make THIS column a 'stone wall' that breaks when its ADJACENT " +
+                 "columns are completed — both the LEFT and RIGHT neighbor (an edge column needs only its " +
+                 "single neighbor). NEIGHBOR-based, no threshold. This is DIFFERENT from Frozen (count of X " +
+                 "any columns, in LevelData.frozenColumns). MUTUALLY EXCLUSIVE with Lock Color Stack, Only " +
+                 "Stack Sort, and Frozen on the same column (validation enforces).")]
+        public bool breakWallStack = false;
     }
 
     /// <summary>
-    /// Break Wall Stack entry: which column starts locked behind a "complete N OTHER columns first"
-    /// gate (any color counts). At runtime LevelLoader freezes <see cref="columnIndex"/> via
-    /// <see cref="Column.Freeze"/>, disables its piece colliders, and shows a <see cref="FrozenOverlay"/>
-    /// with the remaining locked-count. GameManager unfreezes it when total locked columns ≥
-    /// <see cref="unlockThreshold"/>.
+    /// FROZEN entry (COUNT-based): which column starts frozen and how many OTHER columns must be completed
+    /// (any color) before it breaks. X = <see cref="unlockThreshold"/>, shown counting down on the
+    /// FrozenOverlay. At runtime LevelLoader freezes <see cref="columnIndex"/> via <see cref="Column.Freeze"/>;
+    /// GameManager breaks it once total locked columns ≥ X.
     ///
-    /// The color-gated sibling (Lock Color Stack) is authored separately — per column on
-    /// <see cref="ColumnConfig.lockColorStack"/> — NOT here.
+    /// Two SIBLING mechanics live elsewhere (do NOT confuse): NEIGHBOR-based "Break Wall Stack" (breaks when
+    /// its left+right neighbors complete) on <see cref="ColumnConfig.breakWallStack"/>; and Lock Color Stack
+    /// (count of a SPECIFIC color) on <see cref="ColumnConfig.lockColorStack"/>.
     /// </summary>
     [System.Serializable]
     public class FrozenColumnConfig
     {
-        [Tooltip("0-based index of the column that starts frozen.")]
+        [Tooltip("0-based index of the column that starts FROZEN.")]
         public int columnIndex;
 
-        [Tooltip("How many OTHER columns must the player lock (complete) before this column " +
-                 "unfreezes. Designer must keep this ≤ (totalColumns − frozenColumns.Length) for " +
-                 "the level to remain winnable.")]
+        [Tooltip("X = how many OTHER columns (any color) must be completed before this FROZEN column " +
+                 "breaks. Shown on the FrozenOverlay and counts down as columns complete. (NEIGHBOR-based " +
+                 "'Break Wall Stack' is a DIFFERENT mechanic — see ColumnConfig.breakWallStack.)")]
         [Min(1)] public int unlockThreshold = 1;
     }
 

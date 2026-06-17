@@ -1,0 +1,44 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4d13a661870faf748bb0ae26c3645c4e, type: 3}
+  m_Name: Hard_Lvl_Theme 1
+  m_EditorClassIdentifier: Assembly-CSharp::Sort.UiThemePalette
+  mainBoardSprite: {fileID: 3286163911610860551, guid: 8daeba0a2aa1ee947923b69cd6e15bc8, type: 3}
+  backgroundSprite: {fileID: 3286163911610860551, guid: 1865ec32f4628414fb4cae8c4b3cc900, type: 3}
+  themedSprites:
+  - key: 0
+    sprite: {fileID: 3286163911610860551, guid: d68737c162d5e1f4d9927704cddbaccd, type: 3}
+  - key: 1
+    sprite: {fileID: 3286163911610860551, guid: 37c73b1561a6ca1439c35b164b5c6679, type: 3}
+  - key: 2
+    sprite: {fileID: 3286163911610860551, guid: 5956e726d2de5524f8a3146886beb23e, type: 3}
+  - key: 5
+    sprite: {fileID: 3286163911610860551, guid: 5956e726d2de5524f8a3146886beb23e, type: 3}
+  - key: 3
+    sprite: {fileID: 3286163911610860551, guid: 3e25b9a8af8c8d1439075a640f3de90f, type: 3}
+  - key: 4
+    sprite: {fileID: 3286163911610860551, guid: 230793bc35cc2ce45a1e480b0c4fc21b, type: 3}
+  primary:
+    top: {r: 0.28235295, g: 0.1764706, b: 0.52156866, a: 1}
+    bottom: {r: 0.2901961, g: 0.20000002, b: 0.5568628, a: 1}
+  secondary:
+    top: {r: 0.3019608, g: 0.19215688, b: 0.5137255, a: 1}
+    bottom: {r: 0.3019608, g: 0.19215688, b: 0.5137255, a: 1}
+  accent:
+    top: {r: 0.46449286, g: 0.3159629, b: 0.7509433, a: 1}
+    bottom: {r: 0.46666667, g: 0.31764707, b: 0.7529412, a: 1}
+  thirdary:
+    top: {r: 0.8235294, g: 0.5686275, b: 0.13725491, a: 1}
+    bottom: {r: 0.8235294, g: 0.5686275, b: 0.13725491, a: 1}
+  backup:
+    top: {r: 0.50099725, g: 0.38582405, b: 0.8415094, a: 1}
+    bottom: {r: 0.5019608, g: 0.3882353, b: 0.84313726, a: 1}

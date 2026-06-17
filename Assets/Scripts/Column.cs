@@ -45,9 +45,15 @@ namespace Sort
         [NonSerialized] int initialFrozenThreshold;
         [NonSerialized] bool initialFrozenLockColor;
         [NonSerialized] string initialFrozenRequiredColor;
+        // Break Wall Stack (neighbor mode): unfreezes when its adjacent columns are completed (no threshold).
+        // Retained across Unfreeze so a Rewind that re-locks a neighbor can re-freeze this wall.
+        [NonSerialized] bool initialFrozenNeighborMode;
 
         /// <summary>True if this column was authored as a Break Wall / Lock Color column — even if currently unfrozen.</summary>
-        public bool WasFrozenColumn => initialFrozenThreshold > 0;
+        public bool WasFrozenColumn => initialFrozenThreshold > 0 || initialFrozenNeighborMode;
+
+        /// <summary>True if the authored freeze was the Break Wall (neighbor-completion) variant.</summary>
+        public bool InitialFrozenNeighborMode => initialFrozenNeighborMode;
 
         /// <summary>The authored unlock threshold (retained across Unfreeze, for Rewind re-freeze).</summary>
         public int InitialFrozenThreshold => initialFrozenThreshold;
@@ -358,11 +364,28 @@ namespace Sort
             frozenUnlockThreshold = threshold;
             frozenLockColor = lockColor;
             frozenRequiredColor = requiredColor;
-            // NOTE: child colliders are intentionally LEFT ENABLED. Every interaction path already
+            // NOTE: child colliders are intentionally LEFT ENABLED (see below). Every interaction path already
             // guards on IsFrozen (HandleColumnClick / Switch / Magnet / tied-chain / rainbow-sink), so
             // the move is blocked there — and keeping colliders enabled lets a tap on a frozen column
             // register so PlayerHand can play the "rejected" shake feedback. (Lock, by contrast, DOES
             // disable colliders since a completed column should be fully inert.)
+            FrozenChanged?.Invoke(this);
+        }
+
+        /// <summary>
+        /// Break Wall Stack freeze: this column is "made of stone" and unfreezes when its ADJACENT columns
+        /// (left + right; an edge column needs only its single existing neighbor) are completed. The neighbor
+        /// check lives in <see cref="GameManager"/> (which knows the column order); this just marks the frozen
+        /// state and retains the neighbor mode so a Rewind that re-locks a neighbor can re-freeze the wall.
+        /// No threshold (unlike Lock Color Stack). Fires <see cref="FrozenChanged"/>.
+        /// </summary>
+        public void FreezeNeighbors()
+        {
+            initialFrozenNeighborMode = true;   // retained across Unfreeze for the Rewind re-freeze path
+            frozenUnlockThreshold = 1;          // any > 0 marks IsFrozen; the value is UNUSED in neighbor mode
+            frozenLockColor = false;
+            frozenRequiredColor = null;
+            // Colliders LEFT ENABLED (same as Freeze) so a tap registers → reject shake; IsFrozen guards block play.
             FrozenChanged?.Invoke(this);
         }
 
@@ -412,7 +435,7 @@ namespace Sort
         /// spin around its own forward axis, then lands back in slot — the SAME motion as the
         /// Questionmark reveal hop. Runs all pieces in parallel. Knobs are on PlayerHand.
         /// </summary>
-        public IEnumerator AnimateCelebration(float duration = 0.4f, float hopDistance = 0.6f, float totalRotationDegrees = 360f)
+        public IEnumerator AnimateCelebration(float duration = 0.4f, float hopDistance = 0.6f, float totalRotationDegrees = 360f, float staggerSeconds = 0f)
         {
             // Hop straight UP (local +Y), IN the board plane — exactly like the reveal hop.
             // Do NOT use -layoutDirection: this column's layoutDirection is (0,0,-1) (pieces stack along
@@ -424,16 +447,23 @@ namespace Sort
             // in-plane rotation that does NOT pass through the board.
             Vector3 flipAxis = Vector3.zero;
 
+            // Cascade from the TOP piece down: child index 0 = slot 0 = the VISUAL TOP (where dropped
+            // pieces land; see DoMoveAnimated / Undo), increasing index = further down. We start the top
+            // piece first (i = 0) and ripple downward with a per-piece startDelay so the spins overlap into
+            // a chain (piece 2 begins while piece 1 is still spinning) instead of one block flip.
+            // staggerSeconds = 0 reproduces the old all-at-once behaviour.
             var anims = new List<Coroutine>();
+            int order = 0;
             for (int i = 0; i < transform.childCount; i++)
             {
                 var piece = transform.GetChild(i).GetComponent<Piece>();
                 if (piece == null) continue;
-                anims.Add(StartCoroutine(piece.AnimateCelebrate(duration, hopDistance, hopDirLocal, flipAxis, totalRotationDegrees)));
+                float startDelay = order * staggerSeconds;
+                order++;
+                anims.Add(StartCoroutine(piece.AnimateCelebrate(duration, hopDistance, hopDirLocal, flipAxis, totalRotationDegrees, startDelay)));
             }
 
-            // Wait for the slowest piece (they all share the same duration so this is equivalent
-            // to waiting for any of them, but iterating is safer if you later vary per-piece timing).
+            // Wait for every piece, including its stagger delay (durations are equal but start times differ).
             foreach (var co in anims) yield return co;
         }
     }

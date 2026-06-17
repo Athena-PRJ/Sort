@@ -34,10 +34,23 @@ namespace Sort
                  "uses its prefab-default material (typically a dark semi-transparent placeholder).")]
         [SerializeField] private Material customArtMaterial;
 
+        [Tooltip("RECOMMENDED frozen art: a 9-SLICED (or Tiled) SpriteRenderer for the ice strip — avoids the " +
+                 "stretch-distortion you get from scaling a detailed sprite. Import the freeze sprite in the " +
+                 "Sprite Editor with 9-slice BORDERS (crisp top/bottom caps + a stretchable/tileable middle) " +
+                 "and set this SpriteRenderer's Draw Mode to Sliced (middle stretches) or Tiled (middle repeats). " +
+                 "At runtime the overlay sets its .size to the column's extent, so ONLY the middle adapts to the " +
+                 "column length — the caps stay sharp at every size. Leave null to use the legacy fade Quad.")]
+        [SerializeField] private SpriteRenderer iceStrip;
+
         [Tooltip("Toggle the fade Quad visibility. ON = placeholder fade visible (default during " +
                  "development). OFF = Quad hidden, only the number-label child stays visible. " +
                  "Useful for testing gameplay without visual clutter.")]
         [SerializeField] private bool showFadeOverlay = true;
+
+        [Tooltip("Sorting order for the ice-strip SpriteRenderer. Pushed high so the ice draws above the " +
+                 "board indicators (sorting order ~10). The ice also gets an always-on-top material at " +
+                 "runtime so it renders over the 3D pieces regardless of depth.")]
+        [SerializeField] private int iceStripSortingOrder = 50;
 
         [Tooltip("How far to push the overlay toward the camera (world units) so it renders ON TOP " +
                  "of the pieces. Same idea as TieVisual.cameraOffset — pieces have non-trivial Z-depth " +
@@ -45,6 +58,12 @@ namespace Sort
                  "avoid clipping. 0.5 is enough for typical Sort# camera; increase if the overlay still " +
                  "ends up partly behind, decrease to keep it tight against the column.")]
         [SerializeField] private float cameraOffset = 0.5f;
+
+        [Tooltip("Manual nudge for the WHOLE overlay, in the COLUMN's local space (so it matches the board " +
+                 "tilt): X = left/right on screen, Y = UP/DOWN on screen, Z = depth (toward/away camera). " +
+                 "Applied after centering on the column. Use Y to shift the ice up a bit, X sideways. " +
+                 "Live-tunable in Play mode (edit it on the FrozenOverlay(Clone) in the Hierarchy).")]
+        [SerializeField] private Vector3 overlayOffset = Vector3.zero;
 
         [Tooltip("Overlay orientation.\n" +
                  "ON (default): the overlay is laid flat over the column using the fixed, tunable LOCAL " +
@@ -68,13 +87,6 @@ namespace Sort
                  "is a live Inspector tuning knob.")]
         [SerializeField] private Vector3 fadeCoverScale = Vector3.one;
 
-        [Tooltip("THIS is the knob to move the threshold NUMBER. Local position offset for the count " +
-                 "label, relative to the overlay's origin. (0,0,0) = centered. Nudge X/Y to reposition " +
-                 "the number; push Z toward the camera to lift it further off the fade cover. The number " +
-                 "is already forced to render ON TOP of the fade quad in code — use this only for " +
-                 "fine placement.")]
-        [SerializeField] private Vector3 labelLocalPosition = Vector3.zero;
-
         Column boundColumn;
 
         // Render queue for the fade quad (Overlay range — after opaque + transparent). The threshold
@@ -84,6 +96,7 @@ namespace Sort
         void Awake()
         {
             ConfigureFadeQuadMaterial();
+            ConfigureIceStripMaterial();
             if (fadeQuad != null) fadeQuad.enabled = showFadeOverlay;
             // The overlay is purely visual and sits in front of the column. Disable any colliders on it
             // so it never swallows a tap meant for the (frozen) column's pieces — PlayerHand needs the
@@ -107,6 +120,13 @@ namespace Sort
             if (mat.HasProperty("_ZTestMode")) mat.SetFloat("_ZTestMode", (float)UnityEngine.Rendering.CompareFunction.Always);
             if (mat.HasProperty("_ZTest"))     mat.SetFloat("_ZTest",     (float)UnityEngine.Rendering.CompareFunction.Always);
             mat.renderQueue = FADE_RENDER_QUEUE + 1;
+
+            // The ice strip (a SpriteRenderer) sorts by sortingOrder, which beats renderQueue for that
+            // renderer type — so without this the number (sortingOrder ~0) draws BEHIND the ice strip
+            // (sortingOrder = iceStripSortingOrder) and is invisible. Push the 3D-TMP label's renderer
+            // one above the ice. (No-op for a UGUI/CanvasRenderer label, which sorts via its Canvas.)
+            var labelRenderer = thresholdLabel.GetComponent<Renderer>();
+            if (labelRenderer != null) labelRenderer.sortingOrder = iceStripSortingOrder + 1;
         }
 
         /// <summary>
@@ -118,6 +138,23 @@ namespace Sort
         ///   - <c>renderQueue = 4000</c> (Overlay): drawn after all opaque + transparent geometry.
         /// Source asset is never modified — we work on an instance.
         /// </summary>
+        /// <summary>
+        /// Makes the ice-strip SpriteRenderer render ON TOP of the 3D pieces. The default sprite material
+        /// ZTests LEqual against the pieces' depth and gets occluded (the bug: ice sat behind the column).
+        /// We swap in the Sort/SpriteOverlay shader (ZTest Always + Queue Overlay — same idea as the fade
+        /// quad and TieOverlay) and bump the sorting order above the board indicators. The SpriteRenderer's
+        /// own sprite + 9-slice draw mode are untouched; only the blend/depth state changes.
+        /// </summary>
+        void ConfigureIceStripMaterial()
+        {
+            if (iceStrip == null) return;
+            iceStrip.sortingOrder = iceStripSortingOrder;
+
+            var sh = Shader.Find("Sort/SpriteOverlay");
+            if (sh == null) return;   // shader missing from build → keep default material (still visible if not occluded)
+            iceStrip.sharedMaterial = new Material(sh) { name = "IceStrip overlay (instance)" };
+        }
+
         void ConfigureFadeQuadMaterial()
         {
             if (fadeQuad == null) return;
@@ -136,13 +173,31 @@ namespace Sort
 
         void LateUpdate()
         {
-            // Re-orient every frame to lie flat on the board surface (coplanar with the column's
-            // pieces). Cheap and robust if the board ever animates. We also re-push toward the
-            // camera every frame so the overlay keeps rendering in front of the pieces.
+            if (boundColumn == null) return;
+            // Re-apply placement + size EVERY frame so Inspector tweaks (overlayOffset, cameraOffset,
+            // boardSurfaceLocalEuler, fadeCoverScale) update LIVE in Play mode. The threshold LABEL is left
+            // alone — the designer positions it by hand as a child of this root, so we don't fight them.
+            ApplyPlacement();
+            AutoSizeFadeQuad(boundColumn);
+            AutoSizeIceStrip(boundColumn);
+        }
+
+        /// <summary>
+        /// Positions the overlay at the column's piece-centroid, lies it flat on the board, pushes it
+        /// toward the camera, then applies the manual <see cref="overlayOffset"/>. Shared by AttachToColumn
+        /// (initial) and LateUpdate (live), so placement is consistent and Inspector tweaks are live.
+        /// </summary>
+        void ApplyPlacement()
+        {
             if (boundColumn == null) return;
             transform.position = ComputeColumnPieceCentroidWorld(boundColumn);
             AlignRotation(boundColumn);
             PushTowardCamera();
+            // Apply the manual nudge in the COLUMN's local space (NOT world): the board is tilted ≈90°, so
+            // a world offset's Y would push the overlay into screen-depth (invisible). In column space the
+            // convention matches the rest of the board (Vector3.up = up-screen): X = left/right, Y = up/down
+            // on screen, Z = depth. TransformVector includes the board scale so the nudge stays proportional.
+            transform.position += boundColumn.transform.TransformVector(overlayOffset);
         }
 
         /// <summary>
@@ -158,40 +213,42 @@ namespace Sort
         {
             if (col == null) return;
             boundColumn = col;
-            transform.position = ComputeColumnPieceCentroidWorld(col);
-            AlignRotation(col);
-            PushTowardCamera();
-            AutoSizeFadeQuad(col);
-            // Force child local position + rotation to zero / identity so the root's transform
-            // is the ONLY transform applied to them. If a designer offset the Quad / label in
-            // the prefab (e.g. eyeballing the layout in Edit Mode), that offset would compound
-            // with the root's rotation and the children would appear shifted / misoriented at
-            // runtime — this resets that authorial drift.
+            ApplyPlacement();   // position + rotation + camera push + manual overlayOffset
+            // Reset child transforms BEFORE auto-sizing. The root's orientation is the ONLY transform we
+            // want applied to the children; any prefab-authored offset/rotation/scale would compound with
+            // the board tilt and misplace them. For the ice strip the SCALE reset is critical: AutoSizeIceStrip
+            // sets SpriteRenderer.size in LOCAL units (dividing world extent by the strip's lossyScale), so a
+            // leftover prefab localScale ≠ 1 makes the strip come out too small/large. With localScale = 1 its
+            // lossyScale is just the board/column scale, which the division cancels → the strip fits the column.
+            if (iceStrip != null)
+            {
+                iceStrip.transform.localPosition = Vector3.zero;
+                iceStrip.transform.localRotation = Quaternion.identity;
+                iceStrip.transform.localScale    = Vector3.one;
+            }
             if (fadeQuad != null)
             {
-                // Reset local transform — root's face-camera rotation is the ONLY rotation we want
-                // applied. Any prefab-authored Quad rotation would compound and misalign the visible face.
                 fadeQuad.transform.localPosition = Vector3.zero;
                 fadeQuad.transform.localRotation = Quaternion.identity;
             }
+
+            AutoSizeFadeQuad(col);
+            AutoSizeIceStrip(col);
             if (thresholdLabel != null)
             {
-                // labelLocalPosition is designer-tunable; rotation stays identity so the number
-                // inherits the root's face-camera orientation cleanly.
-                thresholdLabel.transform.localPosition = labelLocalPosition;
-                thresholdLabel.transform.localRotation = Quaternion.identity;
-                // Force horizontal+vertical center alignment so the number sits at the label's
-                // local origin regardless of how the TMP_Text was authored in the prefab.
-                thresholdLabel.alignment = TMPro.TextAlignmentOptions.Center;
+                // DON'T force the label's transform — the designer positions/rotates it by hand in the prefab
+                // (as a child of this overlay root), and it follows the root automatically. Code only ensures
+                // it renders ON TOP of the ice. (Earlier we snapped it to labelLocalPosition every frame, which
+                // is why moving it had no effect.)
                 // Make the number draw on top of the fade cover (TMP is initialized by now).
                 ConfigureLabelOnTop();
             }
         }
 
         /// <summary>
-        /// Pushes the current "remaining columns to lock before this unfreezes" count to the label.
-        /// Caller computes <paramref name="remaining"/> = unlockThreshold − totalLockedSoFar and
-        /// calls this each time a column locks. Clamped ≥ 0 so the player never sees a negative count.
+        /// Pushes the current "remaining to unfreeze" count to the label — for Break Wall = how many
+        /// adjacent neighbors are still unsolved (2/1→0), for Lock Color = threshold − matching completions.
+        /// GameManager computes it and calls this each time a column locks. Clamped ≥ 0.
         /// </summary>
         public void SetRemaining(int remaining)
         {
@@ -270,11 +327,14 @@ namespace Sort
         /// overlay (or its column parent / board grandparent) is scaled. Designer can leave the Quad's
         /// localScale at any value in the prefab — this method overrides it at runtime.
         /// </summary>
-        void AutoSizeFadeQuad(Column col)
+        /// <summary>
+        /// Measures the column's WORLD-space extent from its pieces: height = first→last piece-center
+        /// distance + one piece-slot of padding (covers the top/bottom edges); width = widest piece.
+        /// Returns false if the column has no pieces. Shared by the fade Quad and the ice-strip sizing.
+        /// </summary>
+        static bool MeasureColumnExtent(Column col, out float worldWidth, out float worldHeight)
         {
-            if (fadeQuad == null) return;
-
-            // Measure column extent in WORLD units from piece positions.
+            worldWidth = worldHeight = 0f;
             Vector3 topPos = Vector3.zero, bottomPos = Vector3.zero;
             float maxPieceWidth = 0f;
             int count = 0;
@@ -293,22 +353,49 @@ namespace Sort
                 }
                 count++;
             }
-            if (count == 0) return;
+            if (count == 0) return false;
 
-            // Distance between first and last piece centers + one piece-slot's worth of padding so
-            // the overlay covers the top piece's top edge and the bottom piece's bottom edge.
             float spanCenters = Vector3.Distance(topPos, bottomPos);
             float perPiece    = (count > 1) ? spanCenters / (count - 1) : maxPieceWidth;
-            float worldHeight = spanCenters + perPiece;
-            float worldWidth  = maxPieceWidth;
+            worldHeight = spanCenters + perPiece;
+            worldWidth  = maxPieceWidth;
+            return true;
+        }
 
-            // Convert world units to local (divide by FrozenOverlay's lossy scale). Uniform-scale
-            // assumption — if your board has non-uniform scale, the Quad may look slightly off.
-            float lossy = Mathf.Abs(fadeQuad.transform.lossyScale.x);
-            if (lossy < 1e-4f) lossy = 1f;
-            // Parent lossy already accounts for FrozenOverlay's chain, so the Quad's localScale × that
-            // = world size. Compute targetLocal = worldSize / (lossy / quadLocal.x), i.e. directly set
-            // localScale to (worldSize / lossy) using fadeQuad's PARENT lossy.
+        /// <summary>
+        /// Sizes the 9-sliced / tiled ice-strip SpriteRenderer to cover the column. Uses SpriteRenderer.size
+        /// (NOT transform scale), so with Draw Mode = Sliced/Tiled only the sprite's middle stretches/tiles
+        /// and the 9-slice caps stay crisp at any column length — no stretch distortion. Auto-fits every
+        /// column with zero per-level tuning. No-op if no ice strip is assigned.
+        /// </summary>
+        void AutoSizeIceStrip(Column col)
+        {
+            if (iceStrip == null) return;
+
+            // CRITICAL: SpriteRenderer.size (set below to fit the column) is IGNORED in Simple draw mode —
+            // the sprite would render at its native size/aspect instead (the "narrow capsule that overshoots
+            // the column" bug). Force it off Simple so the auto-fit takes effect. We pick Sliced (the 9-slice
+            // caps stay crisp, middle stretches); if the designer deliberately set Tiled, we leave that.
+            if (iceStrip.drawMode == SpriteDrawMode.Simple)
+                iceStrip.drawMode = SpriteDrawMode.Sliced;
+
+            if (!MeasureColumnExtent(col, out float worldWidth, out float worldHeight)) return;
+
+            // SpriteRenderer.size is in the renderer's local units → divide world extent by its lossy scale.
+            float lx = Mathf.Abs(iceStrip.transform.lossyScale.x); if (lx < 1e-4f) lx = 1f;
+            float ly = Mathf.Abs(iceStrip.transform.lossyScale.y); if (ly < 1e-4f) ly = 1f;
+            iceStrip.size = new Vector2(
+                (worldWidth  / lx) * fadeCoverScale.x,
+                (worldHeight / ly) * fadeCoverScale.y);
+        }
+
+        void AutoSizeFadeQuad(Column col)
+        {
+            if (fadeQuad == null) return;
+            if (!MeasureColumnExtent(col, out float worldWidth, out float worldHeight)) return;
+
+            // Convert world units to local (divide by the Quad PARENT's lossy scale so localScale × lossy
+            // = world size). Uniform-scale assumption — non-uniform board scale may look slightly off.
             float parentLossyX = Mathf.Abs(transform.lossyScale.x);
             float parentLossyY = Mathf.Abs(transform.lossyScale.y);
             if (parentLossyX < 1e-4f) parentLossyX = 1f;

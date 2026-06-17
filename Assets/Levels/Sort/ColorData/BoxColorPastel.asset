@@ -1,0 +1,41 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ceff2f7e3b7b3594a9998a4e755cff23, type: 3}
+  m_Name: BoxColorPastel
+  m_EditorClassIdentifier: Assembly-CSharp::Sort.ColorPalette
+  entries:
+  - name: Red
+    baseMap: {fileID: 2800000, guid: cba8512da7a030645b612a8650f0ca99, type: 3}
+  - name: Yellow
+    baseMap: {fileID: 2800000, guid: b82d3694d0a6da649ac0f5e45db62a0c, type: 3}
+  - name: White
+    baseMap: {fileID: 2800000, guid: 3aacb6a52bf455e4cafc86613b95f4f8, type: 3}
+  - name: Purple
+    baseMap: {fileID: 2800000, guid: 004f4ac2a15ce614bb917991214c9898, type: 3}
+  - name: Green
+    baseMap: {fileID: 2800000, guid: 3917005940d4cf34ca4a255715eb4fcb, type: 3}
+  - name: Pink
+    baseMap: {fileID: 2800000, guid: 61a1c0837e5ccbc49aa26a5ec722936a, type: 3}
+  - name: Orange
+    baseMap: {fileID: 2800000, guid: cffe7a67cb0325646b22cd6f7148b9fc, type: 3}
+  - name: Blue
+    baseMap: {fileID: 2800000, guid: 7aeabc119f964db4884007fb5c4e2f95, type: 3}
+  - name: Magenta
+    baseMap: {fileID: 2800000, guid: e1f4b1266ef26f9489636c0c10786b24, type: 3}
+  - name: Lime
+    baseMap: {fileID: 2800000, guid: a104a0553ac482f48a5cc4fa5f076ecd, type: 3}
+  - name: Brown
+    baseMap: {fileID: 2800000, guid: 884ab129b75e69a4c88f6765103fbab3, type: 3}
+  - name: skyblue
+    baseMap: {fileID: 2800000, guid: 99770ff6a6aae3e41b934aed97e676f2, type: 3}
+  ambientOcclusionMap: {fileID: 2800000, guid: c5bb68a5f0b81de4190bdf9c8fab94ae, type: 3}
+  ambientOcclusionStrength: 1
