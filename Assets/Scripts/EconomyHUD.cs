@@ -35,9 +35,14 @@ namespace Sort
             PlayerEconomy.Changed -= Refresh;
         }
 
+        float nextTick;
         void Update()
         {
-            // Keep the refill timer ticking once per frame (cheap).
+            // Throttle to 1 Hz: the timer is mm:ss (no need for 60 updates/s), and string.Format here
+            // allocates a string each call — running it every frame was a steady GC drip → frame spikes.
+            // Coin/life CHANGES still refresh instantly via PlayerEconomy.Changed → Refresh().
+            if (Time.unscaledTime < nextTick) return;
+            nextTick = Time.unscaledTime + 1f;
             if (livesRefillTimerText != null) UpdateRefillTimer();
             if (buyLivesButton != null) buyLivesButton.interactable = CanBuyLives();
         }

@@ -557,7 +557,7 @@ namespace Sort
         /// (hand) and the end (board slot) by exactly this much — "rise a little above hand AND board,
         /// then drop in" regardless of how far apart they are. Snaps instantly if duration ≤ 0.
         /// </summary>
-        public IEnumerator AnimateWorldArcTo(Vector3 targetLocalPos, Quaternion targetLocalRot, float duration, float apexClearance, Func<float, float> ease, bool emitTrail = false, Vector3 lateralDir = default, float lateralBow = 0f)
+        public IEnumerator AnimateWorldArcTo(Vector3 targetLocalPos, Quaternion targetLocalRot, float duration, float apexClearance, Func<float, float> ease, bool emitTrail = false, Vector3 lateralDir = default, float lateralBow = 0f, float spinDegrees = 0f, float spinCompleteAt = 1f)
         {
             if (duration <= 0f || !gameObject.activeInHierarchy)
             {
@@ -567,6 +567,13 @@ namespace Sort
             }
 
             if (emitTrail) SetTrailEmitting(true);
+
+            // Optional flight SPIN: rotate spinDegrees around the piece's forward axis over the flight, so a
+            // thrown/wrapped piece tumbles (force feel). Axis captured at start (world) like AnimateCelebrate
+            // to avoid pendulum wobble on the tilted board. Use a MULTIPLE OF 360 so it lands at the target
+            // rotation with no pop (e.g. 360 = one clean turn upright); non-multiples land visibly rotated.
+            bool hasSpin = Mathf.Abs(spinDegrees) > 0.01f;
+            Vector3 spinAxisWorld = transform.forward;
 
             // Optional SIDEWAYS curve (bowling-throw hook): a parabolic bow along lateralDir that peaks at
             // mid-flight and returns to 0 at both ends, so the piece swings out to one side and curves back
@@ -598,6 +605,16 @@ namespace Sort
                 Vector3 lat = hasLateral ? latUnit * (arcShape * lateralBow) : Vector3.zero;
                 transform.position = linear + Vector3.up * bow + lat;
                 transform.localRotation = Quaternion.Slerp(startLocalRot, targetLocalRot, raw);
+                // Spin AFTER the base rotation, around the captured forward axis. The spin finishes at
+                // spinCompleteAt (fraction of flight, e.g. 0.7 = done at 70%) then HOLDS — so the piece
+                // completes its turn early and settles into the slot, instead of still spinning at touchdown.
+                // SmoothStep decelerates the finish so the settle isn't an abrupt stop. (For a 360° spin the
+                // held value lands upright with no pop.)
+                if (hasSpin)
+                {
+                    float spinT = spinCompleteAt > 0f ? Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(raw / spinCompleteAt)) : 1f;
+                    transform.rotation = Quaternion.AngleAxis(spinDegrees * spinT, spinAxisWorld) * transform.rotation;
+                }
                 yield return null;
             }
             // Snap to the exact LOCAL target so float error doesn't leave the piece off-slot

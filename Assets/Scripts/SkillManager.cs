@@ -295,11 +295,17 @@ namespace Sort
         //  Button state
         // ---------------------------------------------------------------------
 
-        // Per-frame Update safety net: catches any case where an event-driven refresh was missed
-        // (e.g. PlayerHand.Instance not yet set at SkillManager.Start, or RefreshButtons firing
-        // mid-construction with stale conditions). Costs ~6 bool comparisons + assignments per
-        // frame — negligible. Logs only when interactable values actually change so it's not noisy.
-        void Update() => RefreshButtons();
+        // Safety-net poll for state changes that DON'T fire an event (e.g. PlayerHand.IsAnimating toggling
+        // mid-move). Throttled to ~10 Hz instead of every frame: RefreshButtons reads PlayerPrefs + sets TMP
+        // text (allocations), so running it 60×/s was a steady GC drip → frame spikes. Real state changes
+        // still refresh INSTANTLY via the StateChanged / SkillModeChanged / PlayerEconomy.Changed events.
+        float nextSafetyRefresh;
+        void Update()
+        {
+            if (Time.unscaledTime < nextSafetyRefresh) return;
+            nextSafetyRefresh = Time.unscaledTime + 0.1f;
+            RefreshButtons();
+        }
 
         bool prevSwitchInteractable, prevMagnetInteractable, prevRewindInteractable;
         bool stateInited;

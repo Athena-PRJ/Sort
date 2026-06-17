@@ -174,12 +174,11 @@ namespace Sort
         void LateUpdate()
         {
             if (boundColumn == null) return;
-            // Re-apply placement + size EVERY frame so Inspector tweaks (overlayOffset, cameraOffset,
-            // boardSurfaceLocalEuler, fadeCoverScale) update LIVE in Play mode. The threshold LABEL is left
-            // alone — the designer positions it by hand as a child of this root, so we don't fight them.
+            // Only re-track POSITION each frame (cheap — keeps the overlay on the column through idle sway /
+            // any board move). Size is set ONCE in AttachToColumn: a frozen column's pieces don't resize, so
+            // re-running AutoSize every frame was pure waste. (Re-tuning fadeCoverScale live now needs a
+            // re-attach; runtime never changes it.)
             ApplyPlacement();
-            AutoSizeFadeQuad(boundColumn);
-            AutoSizeIceStrip(boundColumn);
         }
 
         /// <summary>

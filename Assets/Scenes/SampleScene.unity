@@ -2106,10 +2106,12 @@ MonoBehaviour:
   heldPiece: {fileID: 0}
   handSlotDecoration: {fileID: 1967200875}
   useAnimations: 1
-  heldToTopDuration: 0.75
+  heldToTopDuration: 0.4
   dropArcHeight: 0.005
-  bowlingLateralBow: 1.6
-  shiftAndPopDuration: 0.4
+  bowlingLateralBow: 1.2
+  dropSpinDegrees: 360
+  dropSpinCompleteAt: 0.7
+  shiftAndPopDuration: 0.23
   popArcHeight: 0.8
   landBounceDuration: 0.1
   landBounceOvershoot: 0.02

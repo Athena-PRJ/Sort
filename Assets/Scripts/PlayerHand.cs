@@ -35,6 +35,16 @@ namespace Sort
                  "column gets a small RANDOM lean so it isn't dead straight. The piece swings out then hooks " +
                  "back into the slot. 0 = straight lob; ~0.4–0.8 = a gentle hook. Negate to flip the curve side.")]
         [SerializeField] private float bowlingLateralBow = 0.6f;
+        [Tooltip("FLIGHT SPIN: degrees the piece rotates (around its facing axis) while flying hand → top slot, " +
+                 "or wrapping bottom → top on a tie — a thrown/tumble 'force' feel. Use a MULTIPLE OF 360 so it " +
+                 "LANDS UPRIGHT with no pop (360 = one gentle full turn). A literal 180 lands the icon rotated " +
+                 "half-way. 0 = no spin.")]
+        [SerializeField] private float dropSpinDegrees = 360f;
+        [Tooltip("WHEN the flight spin finishes, as a fraction of the flight (0–1). 1 = spins all the way to " +
+                 "touchdown; LOWER finishes the turn EARLIER and lets the piece settle before landing (e.g. " +
+                 "0.7 = done at 70%, settled for the last 30%). Decelerates smoothly into the settle.")]
+        [Range(0.2f, 1f)]
+        [SerializeField] private float dropSpinCompleteAt = 0.7f;
         [Tooltip("ROOM-MAKING SPEED (seconds). Time for the column's existing pieces to shift down one slot AND " +
                  "the bottom piece to pop to hand — runs CONCURRENTLY with the flight above, so total move time = " +
                  "max(this, flight speed). Keep ≤ flight speed so the slot is empty as the held piece lands.")]
@@ -509,7 +519,8 @@ namespace Sort
             Vector3 latDir = Camera.main != null ? Camera.main.transform.right : Vector3.right;
             animations.Add(StartCoroutine(toInsert.AnimateWorldArcTo(
                 Vector3.zero, toInsert.RestRotation, heldToTopDuration, dropArcHeight, Easing.SmoothStep,
-                emitTrail: true, lateralDir: latDir, lateralBow: lean * bowlingLateralBow)));
+                emitTrail: true, lateralDir: latDir, lateralBow: lean * bowlingLateralBow,
+                spinDegrees: dropSpinDegrees, spinCompleteAt: dropSpinCompleteAt)));
 
             // Every piece except the ejected one shifts down one slot — keep STRAIGHT line because
             // they move only 1 piece-slot's worth of distance, an arc here would look unnecessarily
@@ -644,10 +655,11 @@ namespace Sort
 
             var animations = new List<Coroutine>();
 
-            // Held piece leads — world-up lob (no lag, no clip-through), trail on.
+            // Held piece leads — world-up lob (no lag, no clip-through), trail on, with the flight spin.
             if (toInsert != null)
                 animations.Add(StartCoroutine(toInsert.AnimateWorldArcTo(
-                    Vector3.zero, toInsert.RestRotation, heldToTopDuration, dropArcHeight, Easing.SmoothStep, emitTrail: true)));
+                    Vector3.zero, toInsert.RestRotation, heldToTopDuration, dropArcHeight, Easing.SmoothStep,
+                    emitTrail: true, spinDegrees: dropSpinDegrees, spinCompleteAt: dropSpinCompleteAt)));
 
             foreach (var col in chain)
             {
@@ -674,7 +686,7 @@ namespace Sort
                     // Non-clicked: bottom wraps to top via a world-up lob (matches the held drop, no clip),
                     // on the synchronized beat.
                     var bottom = snap[snap.Count - 1];
-                    animations.Add(StartCoroutine(DelayedWorldArc(bottom, Vector3.zero, boardDur, dropArcHeight, boardLag)));
+                    animations.Add(StartCoroutine(DelayedWorldArc(bottom, Vector3.zero, boardDur, dropArcHeight, boardLag, dropSpinDegrees, dropSpinCompleteAt)));
                     // Other pieces shift down 1 slot, on the synchronized beat.
                     for (int i = 0; i < snap.Count - 1; i++)
                     {
@@ -807,10 +819,10 @@ namespace Sort
 
         /// <summary>Waits <paramref name="delay"/> then flies the piece to its slot via a WORLD-up lob
         /// (used for the non-clicked columns' bottom→top wrap on the synchronized tie beat).</summary>
-        IEnumerator DelayedWorldArc(Piece p, Vector3 targetLocalPos, float duration, float apexClearance, float delay)
+        IEnumerator DelayedWorldArc(Piece p, Vector3 targetLocalPos, float duration, float apexClearance, float delay, float spinDegrees = 0f, float spinCompleteAt = 1f)
         {
             if (delay > 0f) yield return new WaitForSeconds(delay);
-            yield return StartCoroutine(p.AnimateWorldArcTo(targetLocalPos, p.RestRotation, duration, apexClearance, Easing.SmoothStep));
+            yield return StartCoroutine(p.AnimateWorldArcTo(targetLocalPos, p.RestRotation, duration, apexClearance, Easing.SmoothStep, spinDegrees: spinDegrees, spinCompleteAt: spinCompleteAt));
         }
 
         /// <summary>
