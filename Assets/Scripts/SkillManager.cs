@@ -337,10 +337,10 @@ namespace Sort
             UpdateUnlockedLevelLabel(magnetUnlockedLevelText, magnetUnlocked, SkillType.Magnet);
             UpdateUsesBadge(magnetUsesBadge, magnetUnlocked, PlayerEconomy.MagnetUses);
 
-            // Only log when something actually changed so the per-frame Update doesn't spam.
+            // Track the last applied interactable state (used elsewhere); logging removed — it spammed
+            // the Console every time a skill button toggled.
             if (!stateInited || switchTarget != prevSwitchInteractable || magnetTarget != prevMagnetInteractable || rewindTarget != prevRewindInteractable)
             {
-                Debug.Log($"[SkillManager] interactable changed → rewind:{prevRewindInteractable}→{rewindTarget}, switch:{prevSwitchInteractable}→{switchTarget}, magnet:{prevMagnetInteractable}→{magnetTarget}");
                 prevSwitchInteractable = switchTarget;
                 prevMagnetInteractable = magnetTarget;
                 prevRewindInteractable = rewindTarget;

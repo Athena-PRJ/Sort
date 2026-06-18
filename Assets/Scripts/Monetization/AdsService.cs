@@ -18,6 +18,9 @@ namespace Sort.Monetization
     {
         public static AdsService Instance { get; private set; }
 
+        // These are read only inside #if SORT_ADS_LEVELPLAY (CreateRewardedProvider /
+        // CreateInterstitialProvider), so without that define they look "unused" — silence CS0414.
+#pragma warning disable 0414
         [Header("LevelPlay (used only when SORT_ADS_LEVELPLAY is defined)")]
         [Tooltip("LevelPlay App Key from the dashboard.")]
         [SerializeField] private string levelPlayAppKey = "";
@@ -25,6 +28,7 @@ namespace Sort.Monetization
         [SerializeField] private string rewardedAdUnitId = "";
         [Tooltip("Interstitial Ad Unit ID (between-levels ads). Leave blank to disable interstitials.")]
         [SerializeField] private string interstitialAdUnitId = "";
+#pragma warning restore 0414
 
         [Header("Placement names (optional — for capping/reporting)")]
         [SerializeField] private string continuePlacementId = "";

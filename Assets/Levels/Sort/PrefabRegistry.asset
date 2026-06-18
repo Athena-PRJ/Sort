@@ -43,3 +43,13 @@ MonoBehaviour:
     handAnchorScaleAdjust: 0
     mainBoardExtraOffset: {x: 0, y: 0, z: 0}
     heldPieceExtraOffset: {x: 0, y: 0, z: 0}
+  - piecePrefab: {fileID: 6872829844506849547, guid: ed6e4366d1c6d784e9446cdceea23d10, type: 3}
+    palettePastel: {fileID: 11400000, guid: 2a3c36afaa11d014688fa9a1abf92ce1, type: 2}
+    palettePlain: {fileID: 11400000, guid: 0271ba242138b784e8dd6593b8f9d77e, type: 2}
+    pieceScale: {x: 2, y: 2, z: 2}
+    columnSpacing: 1.55
+    pieceSpacing: 2.06
+    mainBoardScaleAdjust: 1
+    handAnchorScaleAdjust: 0
+    mainBoardExtraOffset: {x: 0, y: 0, z: 0}
+    heldPieceExtraOffset: {x: 0, y: 0, z: 0}

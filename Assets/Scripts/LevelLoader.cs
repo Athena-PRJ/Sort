@@ -377,7 +377,7 @@ namespace Sort
             board.Layout();
             for (int i = 0; i < cols.Count; i++) if (cols[i] != null) cols[i].Layout();
             RefreshAlignment();
-            var mbb = FindFirstObjectByType<MainBoardBuilder>();
+            var mbb = FindAnyObjectByType<MainBoardBuilder>();
             if (mbb != null) mbb.MarkDirty();
         }
 

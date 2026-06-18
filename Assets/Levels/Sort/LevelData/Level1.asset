@@ -24,16 +24,16 @@ MonoBehaviour:
     isQuestionmark: 0
   columns:
   - pieces:
-    - color: Red
-      isRainbow: 0
-      isQuestionmark: 1
-    - color: Red
+    - color: Blue
       isRainbow: 0
       isQuestionmark: 0
-    - color: Yellow
+    - color: Black
       isRainbow: 0
       isQuestionmark: 0
-    - color: Lime
+    - color: Purple
+      isRainbow: 0
+      isQuestionmark: 0
+    - color: Red
       isRainbow: 0
       isQuestionmark: 0
     lockColorStack: 0
@@ -41,17 +41,18 @@ MonoBehaviour:
     lockColorUnlockThreshold: 1
     onlyStackSort: 0
     onlyStackColor: Magenta
+    breakWallStack: 0
   - pieces:
-    - color: Red
+    - color: White
       isRainbow: 0
-      isQuestionmark: 1
+      isQuestionmark: 0
     - color: Yellow
       isRainbow: 0
       isQuestionmark: 0
-    - color: Lime
+    - color: Orange
       isRainbow: 0
       isQuestionmark: 0
-    - color: Lime
+    - color: Green
       isRainbow: 0
       isQuestionmark: 0
     lockColorStack: 0
@@ -59,17 +60,18 @@ MonoBehaviour:
     lockColorUnlockThreshold: 1
     onlyStackSort: 0
     onlyStackColor: Magenta
+    breakWallStack: 0
   - pieces:
-    - color: Lime
+    - color: Purple
       isRainbow: 0
       isQuestionmark: 1
-    - color: Yellow
-      isRainbow: 0
-      isQuestionmark: 1
-    - color: Yellow
+    - color: Pink
       isRainbow: 0
       isQuestionmark: 0
-    - color: Red
+    - color: White
+      isRainbow: 0
+      isQuestionmark: 0
+    - color: Blue
       isRainbow: 0
       isQuestionmark: 0
     lockColorStack: 0
@@ -77,6 +79,7 @@ MonoBehaviour:
     lockColorUnlockThreshold: 1
     onlyStackSort: 0
     onlyStackColor: Magenta
+    breakWallStack: 0
   ties:
   - columnA: 0
     row: 1

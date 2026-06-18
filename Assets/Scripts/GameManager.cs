@@ -4,6 +4,7 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.SceneManagement;
+using UnityEngine.UI;
 
 namespace Sort
 {
@@ -28,6 +29,16 @@ namespace Sort
         [Tooltip("The 'You Failed!' panel. Shown after the player runs out of moves AND declines the " +
                  "Out-of-Moves continue. Deducts 1 life; its Retry button calls Restart().")]
         [SerializeField] private GameObject losePanel;
+
+        [Header("Win bonus ad (the '+N / x2' button on the Win panel)")]
+        [Tooltip("Extra coins granted when the player watches the rewarded ad on the Win panel. " +
+                 "Wire that button's OnClick to ClaimWinAdBonus().")]
+        [SerializeField] private int winAdBonusCoins = 60;
+        [Tooltip("Optional: the 'watch ad for bonus' Button. It is DIMMED (interactable=false → its " +
+                 "Disabled Color) while the ad plays so it can't be tapped twice. Set a dark Disabled Color " +
+                 "on the Button for the greyed-out look.")]
+        [SerializeField] private Button winAdButton;
+        bool winAdClaimed;
 
         [Header("Out of Moves (continue offer)")]
         [Tooltip("Shown FIRST when the player runs out of moves — offers a paid/ad continue before failing. " +
@@ -216,24 +227,54 @@ namespace Sort
         /// </summary>
         public void NextLevel()
         {
+            // Continue button: maybe show an interstitial first, then advance.
+            if (AdsService.Instance != null) AdsService.Instance.MaybeShowInterstitial(GoToNextLevel);
+            else GoToNextLevel();
+        }
+
+        /// <summary>Advances to the next level (or main menu if none) WITHOUT showing an interstitial.
+        /// Used directly after the Win bonus rewarded ad so the player isn't shown two ads back-to-back.</summary>
+        void GoToNextLevel()
+        {
             var loader = LevelLoader.Instance;
             var next = loader != null && loader.CurrentLevel != null ? loader.CurrentLevel.nextLevel : null;
-
-            System.Action proceed = () =>
-            {
-                if (next == null) { GoToMainMenu(); return; }
-                LevelProgress.SelectedLevel = next;
-                SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
-            };
-
-            if (AdsService.Instance != null) AdsService.Instance.MaybeShowInterstitial(proceed);
-            else proceed();
+            if (next == null) { GoToMainMenu(); return; }
+            LevelProgress.SelectedLevel = next;
+            SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
         }
 
         public void GoToMainMenu()
         {
             LevelProgress.SelectedLevel = null;
             SceneManager.LoadScene(mainMenuSceneName);
+        }
+
+        /// <summary>
+        /// Win panel "watch ad for bonus coins" button ('+N / x2'). Dims the button (so it can't be tapped
+        /// again), shows a rewarded ad, and ON REWARD EARNED adds <see cref="winAdBonusCoins"/> coins then
+        /// AUTO-ADVANCES to the next level (no separate Continue tap, and no extra interstitial). If the ad
+        /// is skipped/fails, re-enables the button so the player can retry or press Continue. With no
+        /// AdsService in scene it grants immediately (Editor testing).
+        /// </summary>
+        public void ClaimWinAdBonus()
+        {
+            if (!IsWon || winAdClaimed) return;
+            if (winAdButton != null) winAdButton.interactable = false;   // dim + block double-tap
+
+            System.Action<bool> onResult = earned =>
+            {
+                if (!earned)
+                {
+                    if (winAdButton != null) winAdButton.interactable = true;   // failed → let them retry
+                    return;
+                }
+                winAdClaimed = true;
+                PlayerEconomy.AddCoins(winAdBonusCoins);
+                GoToNextLevel();   // auto-continue, skip the between-levels interstitial
+            };
+
+            if (AdsService.Instance != null) AdsService.Instance.ShowRewarded(string.Empty, onResult);
+            else onResult(true);
         }
 
         void OnColumnLocked(Column c)

@@ -729,7 +729,7 @@ namespace Sort
             if (brokenTies.Count > 0)
             {
                 SfxManager.Play(SfxId.TieBreak);
-                var allTies = FindObjectsByType<TieVisual>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
+                var allTies = FindObjectsByType<TieVisual>(FindObjectsInactive.Exclude);
                 foreach (var (a, b) in brokenTies)
                 {
                     foreach (var tv in allTies)
