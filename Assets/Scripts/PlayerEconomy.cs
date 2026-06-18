@@ -15,6 +15,7 @@ namespace Sort
         const string LAST_REFRESH_KEY = "Sort_LastLifeRefresh";
         const string SWITCH_USES_KEY = "Sort_SwitchUses";
         const string MAGNET_USES_KEY = "Sort_MagnetUses";
+        const string ADS_REMOVED_KEY = "Sort_AdsRemoved";
 
         public static event Action Changed;
 
@@ -209,6 +210,19 @@ namespace Sort
             return true;
         }
 
+        // ---------- Ads removed (IAP) ----------
+        // Set by the "Remove Ads" in-app purchase (see IapService). Reserved for gating interstitial /
+        // banner ads later — rewarded ads (opt-in for coins/continue) stay available regardless.
+
+        public static bool AdsRemoved => PlayerPrefs.GetInt(ADS_REMOVED_KEY, 0) == 1;
+
+        public static void SetAdsRemoved(bool removed)
+        {
+            PlayerPrefs.SetInt(ADS_REMOVED_KEY, removed ? 1 : 0);
+            PlayerPrefs.Save();
+            Changed?.Invoke();
+        }
+
         // ---------- Dev / test ----------
 
         public static void ResetEconomy()
@@ -218,6 +232,7 @@ namespace Sort
             PlayerPrefs.DeleteKey(LAST_REFRESH_KEY);
             PlayerPrefs.DeleteKey(SWITCH_USES_KEY);
             PlayerPrefs.DeleteKey(MAGNET_USES_KEY);
+            PlayerPrefs.DeleteKey(ADS_REMOVED_KEY);
             PlayerPrefs.Save();
             Changed?.Invoke();
         }

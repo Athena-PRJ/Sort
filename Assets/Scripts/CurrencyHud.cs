@@ -1,3 +1,4 @@
+using Sort.Monetization;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -27,6 +28,11 @@ namespace Sort
         [Header("Buttons (optional)")]
         [Tooltip("Buy a batch of lives with coins (PlayerEconomy.TryBuyLives). Auto-disabled when at max.")]
         [SerializeField] private Button buyLifeButton;
+        [Tooltip("Watch a rewarded ad for free coins. Routes through AdsService (coin amount is set there). " +
+                 "Falls back to the amount below if no AdsService is present.")]
+        [SerializeField] private Button watchAdButton;
+        [Tooltip("Coins granted by the fallback when no AdsService exists (Editor testing).")]
+        [Min(0)] [SerializeField] private int fallbackAdCoins = 100;
 
         float nextTick;
 
@@ -34,6 +40,7 @@ namespace Sort
         {
             PlayerEconomy.Changed += Refresh;
             if (buyLifeButton != null) buyLifeButton.onClick.AddListener(BuyLife);
+            if (watchAdButton != null) watchAdButton.onClick.AddListener(WatchAdForCoins);
             Refresh();
         }
 
@@ -41,6 +48,7 @@ namespace Sort
         {
             PlayerEconomy.Changed -= Refresh;
             if (buyLifeButton != null) buyLifeButton.onClick.RemoveListener(BuyLife);
+            if (watchAdButton != null) watchAdButton.onClick.RemoveListener(WatchAdForCoins);
         }
 
         void Update()
@@ -76,6 +84,14 @@ namespace Sort
 
         /// <summary>Buy Life button → spend coins for a life batch (no-op if at max / not enough coins).</summary>
         public void BuyLife() => PlayerEconomy.TryBuyLives();
+
+        /// <summary>Watch Ad button → show a rewarded ad via AdsService; coins are credited on success.
+        /// If no AdsService is in the scene, grants the fallback amount immediately (Editor testing).</summary>
+        public void WatchAdForCoins()
+        {
+            if (AdsService.Instance != null) AdsService.Instance.ShowCoinsAd();
+            else GrantCoinsFromAd(fallbackAdCoins);
+        }
 
         /// <summary>Call from a rewarded-ad success callback to grant coins (the MainMenu 'watch ad' flow).</summary>
         public void GrantCoinsFromAd(int amount) => PlayerEconomy.AddCoins(amount);

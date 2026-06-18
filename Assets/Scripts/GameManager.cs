@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Sort.Monetization;
 using TMPro;
 using UnityEngine;
 using UnityEngine.Events;
@@ -141,13 +142,21 @@ namespace Sort
             GrantContinue();
         }
 
-        /// <summary>'Play on (Ads)' — placeholder grants immediately. Wire onRequestRewardedAd to a real
-        /// rewarded-ad SDK and call GrantContinue() ONLY on ad success instead of granting here.</summary>
+        /// <summary>
+        /// 'Play on (Ads)' — show a rewarded ad and grant the continue ONLY if the player earns the reward.
+        /// Routed through <see cref="AdsService"/> when one is present (it uses the Mock provider until a
+        /// real SDK is compiled, so this works in the Editor). The <see cref="onRequestRewardedAd"/> event
+        /// still fires for any extra hooks. Falls back to an immediate grant only if no AdsService exists.
+        /// </summary>
         public void ContinueWithAd()
         {
             if (!awaitingContinue) return;
             onRequestRewardedAd?.Invoke();
-            GrantContinue();   // TODO: move this into the ad-success callback once a real ad SDK is wired.
+
+            if (AdsService.Instance != null)
+                AdsService.Instance.ShowContinueAd(earned => { if (earned) GrantContinue(); });
+            else
+                GrantContinue();   // no AdsService in scene → placeholder immediate grant
         }
 
         /// <summary>Adds the bonus moves, hides the panel, and resumes play (NO life lost, NO You Failed).</summary>
@@ -202,15 +211,23 @@ namespace Sort
         /// <summary>
         /// Wired to the WinPanel's "Next Level" button. Advances to the LevelData referenced by
         /// CurrentLevel.nextLevel. If there is no next level (final level or unwired), returns to main menu.
+        /// Shows an interstitial first (when one is due and the player hasn't bought Remove Ads) via
+        /// AdsService.MaybeShowInterstitial, then navigates — navigation runs regardless of whether an ad showed.
         /// </summary>
         public void NextLevel()
         {
             var loader = LevelLoader.Instance;
             var next = loader != null && loader.CurrentLevel != null ? loader.CurrentLevel.nextLevel : null;
-            if (next == null) { GoToMainMenu(); return; }
 
-            LevelProgress.SelectedLevel = next;
-            SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
+            System.Action proceed = () =>
+            {
+                if (next == null) { GoToMainMenu(); return; }
+                LevelProgress.SelectedLevel = next;
+                SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
+            };
+
+            if (AdsService.Instance != null) AdsService.Instance.MaybeShowInterstitial(proceed);
+            else proceed();
         }
 
         public void GoToMainMenu()
