@@ -37,6 +37,12 @@ namespace Sort
             Sprite chosen = loader != null && loader.CurrentLevel != null ? loader.CurrentLevel.BackgroundSprite : null;
             if (chosen != null) image.sprite = chosen;
             else if (image.sprite == null && fallbackSprite != null) image.sprite = fallbackSprite;
+
+            // If a GrayscaleTint is present, drive its colour from the theme so a B&W background gets
+            // recolored per level/difficulty (white tint = no recolor).
+            var tint = GetComponent<GrayscaleTint>();
+            if (tint != null && loader != null && loader.CurrentLevel != null)
+                tint.SetColor(loader.CurrentLevel.BackgroundTint);
         }
     }
 }

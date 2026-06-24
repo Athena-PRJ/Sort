@@ -460,11 +460,9 @@ namespace Sort
             SfxManager.Play(SfxId.Reveal);
         }
 
-        void OnMouseDown()
-        {
-            if (PlayerHand.Instance == null || transform.parent == null) return;
-            PlayerHand.Instance.OnPieceTapped(this);
-        }
+        // Tap input is handled centrally by PlayerHand via an explicit camera raycast (see PlayerHand.Update).
+        // OnMouseDown was removed: its built-in picking misfires on a LETTERBOXED camera (AspectRatioEnforcer),
+        // which is why taps failed on phones whose aspect ratio differs from the design one.
 
         // ---------------------------------------------------------------------
         //  Animation helpers (coroutine-based, hand-rolled — no DOTween).

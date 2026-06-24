@@ -330,7 +330,9 @@ namespace Sort
                     remaining = col.InitialFrozenThreshold - progress;
                 }
 
-                var overlay = col.GetComponentInChildren<FrozenOverlay>(true);
+                // Either FrozenOverlay (2D) or FrozenColumnIce (3D) — both implement IFrozenOverlay.
+                var overlay = col.GetComponentInChildren<IFrozenOverlay>(true);
+                var overlayGo = (overlay as Component) != null ? ((Component)overlay).gameObject : null;
 
                 if (shouldBeFrozen)
                 {
@@ -342,14 +344,14 @@ namespace Sort
                     }
                     if (overlay != null)
                     {
-                        if (!overlay.gameObject.activeSelf) overlay.gameObject.SetActive(true);
+                        if (overlayGo != null && !overlayGo.activeSelf) overlayGo.SetActive(true);
                         overlay.SetRemaining(remaining);
                     }
                 }
                 else
                 {
                     if (col.IsFrozen) { col.Unfreeze(); SfxManager.Play(SfxId.Unfreeze); }
-                    if (overlay != null && overlay.gameObject.activeSelf) overlay.gameObject.SetActive(false);
+                    if (overlayGo != null && overlayGo.activeSelf) overlayGo.SetActive(false);
                 }
             }
         }

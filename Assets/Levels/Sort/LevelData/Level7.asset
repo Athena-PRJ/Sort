@@ -13,11 +13,11 @@ MonoBehaviour:
   m_Name: Level7
   m_EditorClassIdentifier: Assembly-CSharp::Sort.LevelData
   levelNumber: 7
-  difficulty: 2
+  difficulty: 0
   piecePrefab: {fileID: 2697371083170223703, guid: 12b960f967f10bf4dad210ed95c13691, type: 3}
   paletteStyle: 0
-  themeSet: {fileID: 11400000, guid: 99a32d06eb5024c48b260b1915804a87, type: 2}
-  moveLimit: 18
+  themeSet: {fileID: 11400000, guid: 9d65a4569fa0b724b91b800c6f9f3b67, type: 2}
+  moveLimit: 20
   startingHeldPiece:
     color: Blue
     isRainbow: 1
@@ -41,6 +41,7 @@ MonoBehaviour:
     lockColorUnlockThreshold: 1
     onlyStackSort: 0
     onlyStackColor: Magenta
+    breakWallStack: 0
   - pieces:
     - color: Blue
       isRainbow: 0
@@ -59,6 +60,7 @@ MonoBehaviour:
     lockColorUnlockThreshold: 1
     onlyStackSort: 0
     onlyStackColor: Magenta
+    breakWallStack: 0
   - pieces:
     - color: White
       isRainbow: 0
@@ -77,6 +79,7 @@ MonoBehaviour:
     lockColorUnlockThreshold: 1
     onlyStackSort: 0
     onlyStackColor: Magenta
+    breakWallStack: 0
   ties:
   - columnA: 0
     row: 1

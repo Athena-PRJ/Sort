@@ -260,6 +260,34 @@ namespace Sort
             UpdateRainbowSinkOpportunities();
         }
 
+        // Tap input via an explicit camera raycast (NOT Piece.OnMouseDown). OnMouseDown's built-in picking
+        // misfires when the camera is LETTERBOXED (AspectRatioEnforcer shrinks cam.rect) — that's why taps
+        // worked on phones matching the design aspect but NOT on phones with a different aspect ratio.
+        // Camera.ScreenPointToRay respects the camera's viewport rect, so this registers on EVERY device.
+        // Uses the legacy Input API (the first touch maps to mouse button 0), which is why OnMouseDown worked
+        // at all — so it's available here too.
+        void Update()
+        {
+            if (!Input.GetMouseButtonDown(0)) return;
+            if (IsPointerOverUI()) return;                       // don't tap pieces through buttons / panels
+            var cam = Camera.main;
+            if (cam == null) return;
+            Ray ray = cam.ScreenPointToRay(Input.mousePosition);
+            if (Physics.Raycast(ray, out RaycastHit hit, Mathf.Infinity))
+            {
+                var piece = hit.collider != null ? hit.collider.GetComponentInParent<Piece>() : null;
+                if (piece != null && piece.transform.parent != null) OnPieceTapped(piece);
+            }
+        }
+
+        static bool IsPointerOverUI()
+        {
+            var es = UnityEngine.EventSystems.EventSystem.current;
+            if (es == null) return false;
+            if (Input.touchCount > 0) return es.IsPointerOverGameObject(Input.GetTouch(0).fingerId);
+            return es.IsPointerOverGameObject();
+        }
+
         /// <summary>
         /// Central dispatch for piece taps. Routes through the current skill mode when one is
         /// active, otherwise falls back to the normal column-drop flow.
@@ -545,6 +573,10 @@ namespace Sort
             // Wait for the slowest coroutine to finish (typically heldToTop @ 0.25s).
             foreach (var co in animations) yield return co;
 
+            // Little scale "pop" on the piece that just landed at the TOP of the column — same hop+zoom feel
+            // as the piece that pops into the hand. Fire-and-forget so it doesn't delay the move resolving.
+            if (toInsert != null) StartCoroutine(toInsert.AnimateLandBounce(landBounceDuration, landBounceOvershoot));
+
             // --- assign held ref (already reparented above) ------------------
             if (ejected != null) heldPiece = ejected;
 
@@ -698,6 +730,9 @@ namespace Sort
             }
 
             foreach (var co in animations) yield return co;
+
+            // Scale "pop" on the piece that just landed at the top (matches the non-tie drop + the hand pop).
+            if (toInsert != null) StartCoroutine(toInsert.AnimateLandBounce(landBounceDuration, landBounceOvershoot));
 
             // --- Bind ejected as new held ---
             if (ejected != null) heldPiece = ejected;

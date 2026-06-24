@@ -48,6 +48,13 @@ namespace Sort
                  "Leave null to keep the image's current sprite / BackgroundFrame fallback.")]
         public Sprite backgroundSprite;
 
+        [Tooltip("Tint for the MAIN BOARD when it has a GrayscaleTint component (use a B&W board sprite + this " +
+                 "per-theme colour to recolor it). White = no recolor. Paste a hex into the picker.")]
+        public Color mainBoardTint = Color.white;
+        [Tooltip("Tint for the BACKGROUND when it has a GrayscaleTint component (B&W background + this colour). " +
+                 "White = no recolor.")]
+        public Color backgroundTint = Color.white;
+
         [Tooltip("Per-theme UI sprites keyed by role (You Failed / Out of Moves / Win panel art, per " +
                  "difficulty). A ThemedSprite component on each Image/SpriteRenderer reads the sprite for " +
                  "its key from THIS theme. Add an entry per role you use; missing keys leave the art as-is.")]

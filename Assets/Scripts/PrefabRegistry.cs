@@ -115,6 +115,17 @@ namespace Sort
                  "(0.479, 0.721, 1) to look right. Set to (0, 0, 0) to fall back to the prefab's authored localScale.")]
         public Vector3 pieceScale;
 
+        public enum DepthAxis { X, Y, Z }
+
+        [Tooltip("Extra THICKNESS multiplier on the piece's DEPTH axis (applied ON TOP of Piece Scale / the " +
+                 "prefab's authored scale) — fattens the piece so its 3D side/bottom edge is easier to see. " +
+                 "1 (or 0) = no change. Works even when Piece Scale is (0,0,0).")]
+        public float pieceDepthMultiplier;
+
+        [Tooltip("Which LOCAL axis is the piece's THICKNESS (the thin axis perpendicular to its face). " +
+                 "Block-style tiles are usually Z (their smallest collider dimension).")]
+        public DepthAxis pieceDepthAxis;
+
         [Tooltip("Column spacing (X distance between adjacent columns) for this prefab. " +
                  "Overrides Board's internal default at runtime when this prefab is used.")]
         public float columnSpacing;

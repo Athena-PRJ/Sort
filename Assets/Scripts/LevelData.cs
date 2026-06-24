@@ -80,6 +80,11 @@ namespace Sort
         /// <summary>Per-theme background sprite (from themeSet), or null.</summary>
         public Sprite BackgroundSprite => themeSet != null ? themeSet.backgroundSprite : null;
 
+        /// <summary>Per-theme board recolor tint (from themeSet), white if no theme.</summary>
+        public Color MainBoardTint  => themeSet != null ? themeSet.mainBoardTint  : Color.white;
+        /// <summary>Per-theme background recolor tint (from themeSet), white if no theme.</summary>
+        public Color BackgroundTint => themeSet != null ? themeSet.backgroundTint : Color.white;
+
         // White fallback shared across levels that haven't picked a themeSet (keeps GetThemeColor non-null).
         static GradientColor _defaultTheme;
 

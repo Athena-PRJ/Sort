@@ -12,15 +12,17 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4d13a661870faf748bb0ae26c3645c4e, type: 3}
   m_Name: Easy_Lvl_Theme
   m_EditorClassIdentifier: Assembly-CSharp::Sort.UiThemePalette
-  mainBoardSprite: {fileID: 3286163911610860551, guid: ec0c1bb63d16c204381a9aedc2dbffc2, type: 3}
-  backgroundSprite: {fileID: 3286163911610860551, guid: be5cfdbee055328449bdccf1349e1440, type: 3}
+  mainBoardSprite: {fileID: 21300000, guid: 0b53c408b48ea364d88ee55fcdfc18df, type: 3}
+  backgroundSprite: {fileID: 21300000, guid: aeb04b9675e969d4ab2ba5e66f3f4e40, type: 3}
+  mainBoardTint: {r: 0.90188676, g: 0.22291917, b: 0.24198206, a: 1}
+  backgroundTint: {r: 0.15686275, g: 0.21568628, b: 0.54901963, a: 1}
   themedSprites:
   - key: 1
     sprite: {fileID: 3286163911610860551, guid: 2b396050da1da2c4f9688f83eb128fa7, type: 3}
-  - key: 4
-    sprite: {fileID: 21300000, guid: f66945bad24103c41b2309d75585e306, type: 3}
-  - key: 5
-    sprite: {fileID: 3286163911610860551, guid: 2b396050da1da2c4f9688f83eb128fa7, type: 3}
+  - key: 0
+    sprite: {fileID: 3286163911610860551, guid: 0613c865ae75c12409a297fadeeecfdc, type: 3}
+  - key: 2
+    sprite: {fileID: 3286163911610860551, guid: a349afa9eba93184e9668728ea86aa82, type: 3}
   - key: 5
     sprite: {fileID: 3286163911610860551, guid: a349afa9eba93184e9668728ea86aa82, type: 3}
   - key: 3
@@ -40,5 +42,5 @@ MonoBehaviour:
     top: {r: 0.8235295, g: 0.5686275, b: 0.13725491, a: 1}
     bottom: {r: 0.8235295, g: 0.5686275, b: 0.13725491, a: 1}
   backup:
-    top: {r: 0.35905296, g: 0.4425658, b: 0.90188676, a: 1}
-    bottom: {r: 0.36078432, g: 0.44313726, b: 0.9019608, a: 1}
+    top: {r: 1, g: 1, b: 1, a: 1}
+    bottom: {r: 1, g: 1, b: 1, a: 1}

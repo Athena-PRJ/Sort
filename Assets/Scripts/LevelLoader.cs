@@ -42,6 +42,10 @@ namespace Sort
         [Header("Scene refs")]
         [SerializeField] private Board board;
         [SerializeField] private PlayerHand playerHand;
+        [Tooltip("Match the HandAnchor's ROTATION to a board column so the held piece tilts EXACTLY like the " +
+                 "pieces on the board (same facing under the camera angle). Turn off if you intentionally want " +
+                 "the held piece at a different angle.")]
+        [SerializeField] private bool matchHandRotationToBoard = true;
 
         [Header("Default")]
         [Tooltip("Used when no level is selected (e.g. opening the Game scene directly in editor).")]
@@ -548,8 +552,15 @@ namespace Sort
                     if (col == null) continue;
 
                     // Frozen = COUNT mode: breaks when X (unlockThreshold) ANY columns are completed.
-                    col.Freeze(cfg.unlockThreshold);
-                    SpawnFrozenOverlay(col, cfg.unlockThreshold);
+                    // Column.Freeze ignores threshold <= 0 (would leave the column NOT frozen but still
+                    // showing the overlay). Clamp to >=1 and warn so a stale 0 doesn't silently break it.
+                    int threshold = Mathf.Max(1, cfg.unlockThreshold);
+                    if (cfg.unlockThreshold < 1)
+                        Debug.LogWarning($"[LevelLoader] Frozen column {cfg.columnIndex} in '{data.name}' has " +
+                                         $"unlockThreshold {cfg.unlockThreshold} (<1) — clamped to 1 so it actually " +
+                                         $"freezes. Set X on this level's frozenColumns entry.", this);
+                    col.Freeze(threshold);
+                    SpawnFrozenOverlay(col, threshold);
                 }
             }
 
@@ -574,30 +585,37 @@ namespace Sort
                     }
                     else if (cc.lockColorStack)
                     {
-                        col.Freeze(cc.lockColorUnlockThreshold, true, cc.requiredColor);
-                        SpawnFrozenOverlay(col, cc.lockColorUnlockThreshold);
+                        int lockThreshold = Mathf.Max(1, cc.lockColorUnlockThreshold);
+                        if (cc.lockColorUnlockThreshold < 1)
+                            Debug.LogWarning($"[LevelLoader] Lock-Color column {i} in '{data.name}' has " +
+                                             $"threshold {cc.lockColorUnlockThreshold} (<1) — clamped to 1.", this);
+                        col.Freeze(lockThreshold, true, cc.requiredColor);
+                        SpawnFrozenOverlay(col, lockThreshold);
                     }
                 }
             }
         }
 
         /// <summary>
-        /// Instantiates the FrozenOverlay prefab parented to <paramref name="col"/>, positions/rotates it
-        /// over the column, and shows the initial remaining count. No-op if no prefab assigned.
+        /// Instantiates the frozen-overlay prefab parented to <paramref name="col"/>, positions/rotates it
+        /// over the column, and shows the initial remaining count. The prefab may carry EITHER a 2D
+        /// <see cref="FrozenOverlay"/> or a 3D <see cref="FrozenColumnIce"/> — both implement
+        /// <see cref="IFrozenOverlay"/>. No-op if no prefab assigned.
         /// </summary>
-        FrozenOverlay SpawnFrozenOverlay(Column col, int threshold)
+        IFrozenOverlay SpawnFrozenOverlay(Column col, int threshold)
         {
             if (frozenOverlayPrefab == null) return null;
             var overlayGO = Instantiate(frozenOverlayPrefab, col.transform);
-            var overlay = overlayGO.GetComponent<FrozenOverlay>();
+            var overlay = overlayGO.GetComponent<IFrozenOverlay>();
             if (overlay == null)
             {
-                Debug.LogWarning($"[LevelLoader] frozenOverlayPrefab is missing a FrozenOverlay component " +
-                                 $"— overlay for '{col.name}' won't update its remaining count.", this);
+                Debug.LogWarning($"[LevelLoader] frozenOverlayPrefab is missing a FrozenOverlay / " +
+                                 $"FrozenColumnIce component — overlay for '{col.name}' won't update its " +
+                                 $"remaining count.", this);
                 return null;
             }
-            // AttachToColumn handles position (world centroid of pieces) AND rotation (lies flat over
-            // the column). Robust to board / column rotation — no manual local-space math here.
+            // AttachToColumn handles position + orientation over the column (each implementation does its
+            // own thing — flat decal for 2D, segmented mesh stack for 3D).
             overlay.AttachToColumn(col);
             overlay.SetRemaining(threshold);
             return overlay;
@@ -642,24 +660,35 @@ namespace Sort
 
         /// <summary>
         /// Pushes the registry entry's <see cref="PieceGenEntry.pieceScale"/> onto the freshly-spawned
-        /// piece as its baseline. No-op when the registry has no entry for this prefab, or when the
-        /// entry's pieceScale is zero (designer's signal to "use the prefab's authored localScale instead").
+        /// piece as its baseline, plus a per-prefab DEPTH (thickness) multiplier so the piece's 3D edge is
+        /// easier to see. When pieceScale is zero (use the prefab's authored scale) only the depth multiplier
+        /// applies. No-op when there's no entry, or nothing to change.
         /// </summary>
         void ApplyRegistryPieceScale(Piece piece, GameObject piecePrefab)
         {
             if (piece == null || registry == null) return;
             if (!registry.TryGetEntry(piecePrefab, out var entry)) return;
-            if (entry.pieceScale.sqrMagnitude < 1e-6f) return; // Zero scale → keep prefab's authored.
+
+            float depthMul = entry.pieceDepthMultiplier > 0f ? entry.pieceDepthMultiplier : 1f;
+            bool useRegistryScale = entry.pieceScale.sqrMagnitude >= 1e-6f;
+            // Nothing to do: keep the prefab's authored scale untouched.
+            if (!useRegistryScale && Mathf.Approximately(depthMul, 1f)) return;
 
             // Per-grid piece-scale override (independent of board scale) from scaleOverrides.
             float pieceMul = 1f;
-            if (CurrentLevel != null)
+            if (CurrentLevel != null && useRegistryScale)
             {
                 GetGrid(CurrentLevel, out int gc, out int gr);
                 if (TryGetGridOverride(gc, gr, out var gov) && gov.pieceScaleMultiplier > 0f)
                     pieceMul = gov.pieceScaleMultiplier;
             }
-            piece.SetBaselineScale(entry.pieceScale * pieceMul);
+
+            // Start from the registry scale, or the PREFAB's authored localScale when pieceScale is zero
+            // (read from the prefab, not the live instance, so re-applies don't compound the depth), then
+            // fatten the chosen depth axis so the thickness shows.
+            Vector3 s = useRegistryScale ? entry.pieceScale * pieceMul : piecePrefab.transform.localScale;
+            s[(int)entry.pieceDepthAxis] *= depthMul;
+            piece.SetBaselineScale(s);
         }
 
         /// <summary>Reads a level's grid size: cols = number of columns, rows = the tallest column.</summary>
@@ -755,6 +784,10 @@ namespace Sort
                 var refCol = board.GetComponentInChildren<Column>(true);
                 if (refCol != null)
                 {
+                    // Match the hand's WORLD rotation to a column so the held piece (RestRotation relative to
+                    // HandAnchor) faces exactly like the board pieces (RestRotation relative to Column).
+                    if (matchHandRotationToBoard) ha.rotation = refCol.transform.rotation;
+
                     Vector3 targetWorld = refCol.transform.lossyScale * handAnchorAdjust;
                     Vector3 parentLossy = ha.parent != null ? ha.parent.lossyScale : Vector3.one;
                     ha.localScale = new Vector3(
@@ -927,6 +960,11 @@ namespace Sort
 
         [Tooltip("INDICATOR: extra MainBoard-local nudge for the BOTTOM out arrow on this grid.")]
         public Vector3 indicatorOutOffset;
+
+        [Tooltip("INDICATOR: horizontal SPREAD of the indicators from the board centre for this grid " +
+                 "(1 = directly over each column, >1 = wider apart, <1 = closer). 0 = use MainBoardBuilder's " +
+                 "global Indicator Spread X. Use to space the top status icons on a specific grid.")]
+        public float indicatorSpread;
     }
 
     // Per-prefab layout config now lives on PieceGenEntry in PrefabRegistry.cs. The old

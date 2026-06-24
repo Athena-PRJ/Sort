@@ -17,7 +17,7 @@ namespace Sort
     ///     ticks down live as the player progresses.
     ///   - Position+rotation also refresh in LateUpdate so the overlay tracks any camera movement.
     /// </summary>
-    public class FrozenOverlay : MonoBehaviour
+    public class FrozenOverlay : MonoBehaviour, IFrozenOverlay
     {
         [Tooltip("TMP_Text that shows the remaining-columns-to-lock count. Use the 3D TextMeshPro " +
                  "variant (NOT TextMeshProUGUI) so it renders in world space alongside the pieces.")]

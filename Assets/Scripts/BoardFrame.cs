@@ -47,6 +47,12 @@ namespace Sort
 
             // Always Simple draw mode so the GameObject's localScale drives the rendered size.
             sr.drawMode = SpriteDrawMode.Simple;
+
+            // If a GrayscaleTint is present, drive its colour from the theme so a B&W board sprite gets
+            // recolored per level/difficulty (white tint = no recolor).
+            var tint = GetComponent<GrayscaleTint>();
+            if (tint != null && loader != null && loader.CurrentLevel != null)
+                tint.SetColor(loader.CurrentLevel.MainBoardTint);
         }
     }
 }
