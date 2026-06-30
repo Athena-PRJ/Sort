@@ -11,6 +11,13 @@ namespace Sort
         [Tooltip("Direction each subsequent piece moves from the top, in local space.")]
         [SerializeField] private Vector3 layoutDirection = new Vector3(0, -1, 0);
 
+        [Header("Tile-In-Tile reveal")]
+        [Tooltip("Flip duration when a column uniform in the OUTER color reveals its 2-layer pieces' inner color.")]
+        [SerializeField] private float twoLayerRevealDuration = 0.45f;
+        [Tooltip("Hop height of that reveal flip (local units).")]
+        [SerializeField] private float twoLayerRevealHop = 0.5f;
+        bool revealingInner;
+
         public bool IsLocked { get; private set; }
         public event Action<Column> Locked;
 
@@ -37,6 +44,41 @@ namespace Sort
 
         /// <summary>The color NAME whose locked columns count toward unlock — only meaningful when <see cref="FrozenLockColor"/>.</summary>
         public string FrozenRequiredColor => frozenRequiredColor;
+
+        // ── Thread (independent special-column mechanic) ──────────────────────────────────────────────
+        // The column is COVERED + blocked (like Frozen) until the player completes a column matching
+        // threadColor; then the Thread unlocks (its overlay plays thread_anim) and the column is playable.
+        // Fully independent from the frozen fields above.
+        [NonSerialized] bool isThreaded;
+        [NonSerialized] string threadColor;
+
+        /// <summary>True while this column is covered by a Thread (blocked until its color completes).</summary>
+        public bool IsThreaded => isThreaded;
+        /// <summary>The color NAME whose completion unlocks this thread.</summary>
+        public string ThreadColor => threadColor;
+
+        /// <summary>Interaction is blocked by EITHER special mechanic — taps / skills / chains / lock all guard on this.</summary>
+        public bool IsBlocked => IsFrozen || isThreaded;
+
+        /// <summary>Fired when this column's thread state changes (applied / removed) — drives the Thread overlay.</summary>
+        public event Action<Column> ThreadChanged;
+
+        /// <summary>Covers this column with a thread of <paramref name="color"/>; blocks play until removed.
+        /// Colliders stay enabled (like Freeze) so a tap still registers a reject. Set by LevelLoader at build.</summary>
+        public void ApplyThread(string color)
+        {
+            isThreaded = true;
+            threadColor = color;
+            ThreadChanged?.Invoke(this);
+        }
+
+        /// <summary>Removes the thread (its matching color was completed) — the column becomes playable.</summary>
+        public void RemoveThread()
+        {
+            if (!isThreaded) return;
+            isThreaded = false;
+            ThreadChanged?.Invoke(this);
+        }
 
         // The ORIGINAL (level-authored) freeze spec, captured the first time this column is frozen and
         // RETAINED across Unfreeze. This lets a Rewind re-freeze the column if undoing a lock drops the
@@ -320,14 +362,23 @@ namespace Sort
         public void EvaluateLock()
         {
             if (IsLocked) return;
-            // Frozen columns can never lock — they're behind a "complete N others first" gate,
-            // so they must unfreeze before they're even allowed to be evaluated for win condition.
-            if (IsFrozen) return;
+            // Blocked columns (Frozen OR Threaded) can never lock — they're behind a gate and must be
+            // unlocked first before being evaluated for the win condition.
+            if (IsBlocked) return;
             if (!IsMonoColor()) return;
             // Tie binding takes priority over lock — a tied column shouldn't lock while its pieces
             // are still bound to a neighbour, because the binding can drag locked pieces around on
             // a tied shift, which would visually contradict the "locked" state.
             if (HasActiveTie()) return;
+
+            // Tile-In-Tile: a column uniform by OUTER color but containing 2-layer pieces does NOT lock —
+            // its 2-layer pieces flip and reveal their inner color instead (Piece.Color = outer color, so
+            // IsMonoColor already tested outer uniformity). After they convert, colors differ → re-evaluate.
+            if (HasTwoLayerPiece())
+            {
+                if (!revealingInner) StartCoroutine(RevealTwoLayerThenEvaluate());
+                return;
+            }
 
             IsLocked = true;
             for (int i = 0; i < transform.childCount; i++)
@@ -336,6 +387,37 @@ namespace Sort
                 if (col != null) col.enabled = false;
             }
             Locked?.Invoke(this);
+        }
+
+        /// <summary>True if any child piece is still a 2-layer (Tile-In-Tile) piece with an unrevealed inner color.</summary>
+        bool HasTwoLayerPiece()
+        {
+            for (int i = 0; i < transform.childCount; i++)
+            {
+                var p = transform.GetChild(i).GetComponent<Piece>();
+                if (p != null && p.IsTwoLayer) return true;
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// Flips every 2-layer piece in this column to its inner color (in parallel), then re-evaluates the
+        /// lock. The column intentionally does NOT lock from this pass — the colors change, so it will only
+        /// lock later if the player re-sorts the (now inner-colored) pieces into a uniform column.
+        /// </summary>
+        IEnumerator RevealTwoLayerThenEvaluate()
+        {
+            revealingInner = true;
+            var anims = new List<Coroutine>();
+            for (int i = 0; i < transform.childCount; i++)
+            {
+                var p = transform.GetChild(i).GetComponent<Piece>();
+                if (p != null && p.IsTwoLayer)
+                    anims.Add(StartCoroutine(p.AnimateRevealInner(twoLayerRevealDuration, twoLayerRevealHop)));
+            }
+            foreach (var a in anims) yield return a;
+            revealingInner = false;
+            EvaluateLock();
         }
 
         /// <summary>

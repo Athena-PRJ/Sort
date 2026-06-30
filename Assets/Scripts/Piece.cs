@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace Sort
@@ -11,6 +12,16 @@ namespace Sort
         [SerializeField] private bool isRainbow;
         [SerializeField] private bool isQuestionmark;
         [SerializeField] private bool revealed = true;
+
+        [Header("Tile-In-Tile (2-layer)")]
+        [Tooltip("Inner-layer color (set per piece from LevelData.PieceConfig.innerColor). Empty = normal 1-layer.")]
+        [SerializeField] private string innerColor = "";
+        [Tooltip("Inner layer size as a fraction of the piece (0.7 = 70%, centred).")]
+        [SerializeField, Range(0.1f, 1f)] private float innerLayerScale = 0.7f;
+        [Tooltip("Local offset of the inner layer — nudge along the face normal so it clearly sits on top.")]
+        [SerializeField] private Vector3 innerLayerLocalOffset = Vector3.zero;
+        [Tooltip("Render the inner layer ON TOP (ZTest Always + high queue) so it always shows over the outer.")]
+        [SerializeField] private bool innerLayerOnTop = true;
 
         [Header("Tinting")]
         [Tooltip("Renderers tinted by the piece color AND material-swapped for special states. " +
@@ -96,18 +107,42 @@ namespace Sort
         public bool IsQuestionmark => isQuestionmark;
         public bool IsRevealed => revealed;
 
-        // Runtime-only tie binding: when this piece is tied to a neighbour in an adjacent column,
-        // this points to that piece (and vice versa). Cleared when the tie breaks (Phase C logic).
-        // Designer authors initial ties via LevelData.ties; LevelLoader wires this up at level build.
-        Piece tiedPartner;
+        /// <summary>Tile-In-Tile: true while this piece still has an unrevealed inner layer (sorts as its OUTER color).</summary>
+        public bool IsTwoLayer => !string.IsNullOrEmpty(innerColor);
+        public string InnerColor => innerColor;
+        GameObject innerLayerGO;
 
-        /// <summary>The piece this one is currently tied to in an adjacent column, or null. See <see cref="LevelData.TieConfig"/>.</summary>
-        public Piece TiedPartner => tiedPartner;
-        public bool IsTied => tiedPartner != null;
+        // Runtime-only tie binding: the neighbour piece(s) this one is tied to (in adjacent columns at
+        // the same row). A 2-column Tie/Lock has ONE partner; a Lock spanning 3+ columns ties the middle
+        // piece to BOTH neighbours, hence a LIST. Cleared when the bond breaks (Phase C logic).
+        // Designer authors initial bonds via LevelData.ties; LevelLoader wires this up at level build.
+        readonly List<Piece> tiedPartners = new List<Piece>();
 
-        /// <summary>Wires the tie binding (called by LevelLoader after instantiating a tied pair).
-        /// Pass null to clear (called by Phase C tie-break logic).</summary>
-        public void SetTiedPartner(Piece partner) => tiedPartner = partner;
+        /// <summary>All pieces this one is currently tied to (0..N). See <see cref="LevelData.TieConfig"/>.</summary>
+        public IReadOnlyList<Piece> TiedPartners => tiedPartners;
+
+        /// <summary>First tied partner, or null. Convenience for callers that only need one.</summary>
+        public Piece TiedPartner => tiedPartners.Count > 0 ? tiedPartners[0] : null;
+        public bool IsTied => tiedPartners.Count > 0;
+
+        /// <summary>Adds a tied partner (call on both sides). Ignores null / self / duplicates.</summary>
+        public void AddTiedPartner(Piece partner)
+        {
+            if (partner != null && partner != this && !tiedPartners.Contains(partner)) tiedPartners.Add(partner);
+        }
+
+        /// <summary>Removes a single tied partner (call on both sides when one link breaks).</summary>
+        public void RemoveTiedPartner(Piece partner) => tiedPartners.Remove(partner);
+
+        /// <summary>Clears ALL tie links on this piece (used when its whole bond breaks).</summary>
+        public void ClearTiedPartners() => tiedPartners.Clear();
+
+        /// <summary>Back-compat single-partner setter: pass a piece to tie to exactly that one, null to clear all.</summary>
+        public void SetTiedPartner(Piece partner)
+        {
+            tiedPartners.Clear();
+            if (partner != null) tiedPartners.Add(partner);
+        }
 
         /// <summary>
         /// The local rotation this piece should sit at when at rest (in a column slot or held in hand).
@@ -303,21 +338,24 @@ namespace Sort
 
         Material GetOverrideMaterial()
         {
+            // Hidden Questionmark takes PRIORITY over Rainbow: a piece that is BOTH must look like a plain
+            // "?" until revealed, then show its rainbow. Returning here (even null, when the "?" is drawn by
+            // the overlay quad instead of a material) prevents the rainbow material from showing through.
+            if (isQuestionmark && !revealed) return questionmarkMaterial;
             if (isRainbow && rainbowMaterial != null) return rainbowMaterial;
-            if (isQuestionmark && !revealed && questionmarkMaterial != null) return questionmarkMaterial;
             return null;
         }
 
         Color GetTintColor()
         {
-            // If a material override exists for this state, keep the tint neutral so the material's texture shows pure.
-            if (isRainbow && rainbowMaterial != null) return UnityEngine.Color.white;
-            if (isQuestionmark && !revealed && questionmarkMaterial != null) return UnityEngine.Color.white;
-            // No override: rainbow / hidden-Q? use their placeholder colors. Normal colors no longer
-            // carry a Unity tint (color is now a palette NAME) — the palette path supplies the texture,
-            // so the legacy tint path leaves the material's own color untouched (white = no multiply).
-            if (isRainbow) return rainbowDisplayColor;
-            if (isQuestionmark && !revealed) return questionmarkDisplayColor;
+            // Hidden Questionmark wins over Rainbow (same priority as GetOverrideMaterial) — so a hidden
+            // "?" that is secretly a rainbow tints flat GRAY, not rainbow, until it's revealed.
+            // White = neutral (a material override / palette texture shows pure); the placeholder colors
+            // are only used when there's no override material for that state.
+            if (isQuestionmark && !revealed)
+                return questionmarkMaterial != null ? UnityEngine.Color.white : questionmarkDisplayColor;
+            if (isRainbow)
+                return rainbowMaterial != null ? UnityEngine.Color.white : rainbowDisplayColor;
             return UnityEngine.Color.white;
         }
 
@@ -438,7 +476,9 @@ namespace Sort
             isRainbow = config.isRainbow;
             isQuestionmark = config.isQuestionmark;
             revealed = !config.isQuestionmark;
+            innerColor = config.innerColor;
             ApplyVisualState();
+            BuildInnerLayer();
         }
 
         /// <summary>Reveals a Questionmark — swaps back to the original material and applies the real color.</summary>
@@ -456,6 +496,106 @@ namespace Sort
         void DoReveal()
         {
             revealed = true;
+            ApplyVisualState();
+            SfxManager.Play(SfxId.Reveal);
+        }
+
+        // ---------------------------------------------------------------------
+        //  Tile-In-Tile (2-layer): a smaller inner-color layer on top of the piece.
+        // ---------------------------------------------------------------------
+
+        /// <summary>
+        /// Builds the smaller inner-color layer over the piece's primary mesh (a child clone of that mesh
+        /// at <see cref="innerLayerScale"/>, colored <see cref="innerColor"/> via the palette, optionally
+        /// rendered on top). Rebuilt from SetConfig; no-op when innerColor is empty. The clone is created
+        /// AFTER Awake cached the outer renderers, so ApplyVisualState never touches it.
+        /// </summary>
+        void BuildInnerLayer()
+        {
+            if (innerLayerGO != null) { Destroy(innerLayerGO); innerLayerGO = null; }
+            if (string.IsNullOrEmpty(innerColor)) return;
+
+            var renderers = GetRenderers();
+            if (renderers == null || renderers.Length == 0) return;
+            var primary = renderers[0];
+            if (primary == null) return;
+            var mf = primary.GetComponent<MeshFilter>();
+            if (mf == null || mf.sharedMesh == null) return;
+
+            var go = new GameObject("InnerLayer");
+            go.transform.SetParent(primary.transform, false);
+            go.transform.localPosition = innerLayerLocalOffset;
+            go.transform.localRotation = Quaternion.identity;
+            go.transform.localScale = Vector3.one * innerLayerScale;
+
+            go.AddComponent<MeshFilter>().sharedMesh = mf.sharedMesh;
+            var imr = go.AddComponent<MeshRenderer>();
+
+            Material baseMat = primary.sharedMaterial;
+            var inst = baseMat != null ? new Material(baseMat) : new Material(Shader.Find("Universal Render Pipeline/Lit"));
+            inst.name = "InnerLayer (" + innerColor + ")";
+            if (palette != null)
+            {
+                var bm = palette.GetBaseMap(innerColor);
+                if (bm != null) { inst.SetTexture("_BaseMap", bm); inst.SetTexture("_MainTex", bm); }
+                if (palette.ambientOcclusionMap != null)
+                {
+                    inst.SetTexture("_OcclusionMap", palette.ambientOcclusionMap);
+                    inst.SetFloat("_OcclusionStrength", palette.ambientOcclusionStrength);
+                }
+            }
+            inst.SetColor("_BaseColor", UnityEngine.Color.white);
+            inst.SetColor("_Color", UnityEngine.Color.white);
+            if (innerLayerOnTop)
+            {
+                if (inst.HasProperty("_ZTest")) inst.SetInt("_ZTest", (int)UnityEngine.Rendering.CompareFunction.Always);
+                inst.renderQueue = 3500;
+            }
+            imr.sharedMaterial = inst;
+            innerLayerGO = go;
+        }
+
+        /// <summary>
+        /// Tile-In-Tile reveal: in-plane hop + a single forward-axis spin (same motion as the celebration),
+        /// and at the apex the piece <see cref="ConvertToInner"/> — it becomes a normal 1-layer piece of
+        /// the inner color. No-op if this isn't a 2-layer piece. Called by Column when its column is
+        /// uniform in the OUTER color.
+        /// </summary>
+        public IEnumerator AnimateRevealInner(float duration, float hopHeight, float totalRotationDegrees = 360f)
+        {
+            if (!IsTwoLayer) yield break;
+            if (duration <= 0f) { ConvertToInner(); yield break; }
+
+            Vector3 startLocalPos = transform.localPosition;
+            Quaternion startRotWorld = transform.rotation;
+            Vector3 axis = transform.forward;   // in-plane spin (same as AnimateCelebrate's default)
+            bool didConvert = false;
+
+            float t = 0f;
+            while (t < duration)
+            {
+                t += Time.deltaTime;
+                float u = Mathf.Clamp01(t / duration);
+                float hopT = 4f * u * (1f - u);
+                transform.localPosition = startLocalPos + Vector3.up * (hopHeight * hopT);
+                transform.rotation = Quaternion.AngleAxis(totalRotationDegrees * u, axis) * startRotWorld;
+                if (!didConvert && u >= 0.5f) { ConvertToInner(); didConvert = true; }
+                yield return null;
+            }
+            if (!didConvert) ConvertToInner();
+
+            transform.localPosition = startLocalPos;
+            transform.rotation = startRotWorld;
+        }
+
+        /// <summary>Turns a 2-layer piece into a normal piece of its inner color: swaps Color → innerColor,
+        /// clears the two-layer state, removes the inner layer, refreshes visuals.</summary>
+        void ConvertToInner()
+        {
+            if (string.IsNullOrEmpty(innerColor)) return;
+            color = innerColor;
+            innerColor = "";
+            if (innerLayerGO != null) { Destroy(innerLayerGO); innerLayerGO = null; }
             ApplyVisualState();
             SfxManager.Play(SfxId.Reveal);
         }

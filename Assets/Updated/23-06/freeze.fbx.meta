@@ -3,7 +3,12 @@ guid: a95a2a14b7a31d24ca3581e5c78ab620
 ModelImporter:
   serializedVersion: 24200
   internalIDToNameTable: []
-  externalObjects: {}
+  externalObjects:
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Freeze.001
+    second: {fileID: 2100000, guid: 297ff2a9d14b2ba41ada0e98f923fa01, type: 2}
   materials:
     materialImportMode: 2
     materialName: 0

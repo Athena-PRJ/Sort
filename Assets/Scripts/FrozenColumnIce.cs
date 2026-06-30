@@ -17,6 +17,18 @@ namespace Sort
     public class FrozenColumnIce : MonoBehaviour, IFrozenOverlay
     {
         public enum MiddleFill { Stretch, Repeat }
+        public enum FillMode { Segmented, SingleBlock }
+
+        [Header("Fill mode")]
+        [Tooltip("Segmented = assemble the column from head/middle/tail (the freeze_start/midA/midB/midC/end set). " +
+                 "SingleBlock = use ONE full freeze mesh (e.g. freeze.fbx) scaled to cover the whole column.")]
+        [SerializeField] private FillMode fillMode = FillMode.Segmented;
+        [Tooltip("SingleBlock mode: the one full-block freeze mesh (drag the freeze.fbx asset here) — stretched " +
+                 "in length to span the column and width-fit like the segmented set.")]
+        [SerializeField] private GameObject singleBlockSegment;
+        [Tooltip("SingleBlock mode: block length as a multiple of the column coverage (1 = span the pieces " +
+                 "exactly; >1 = ice pokes past the top/bottom ends).")]
+        [Min(0.01f)] [SerializeField] private float singleBlockLengthPadding = 1f;
 
         [Header("Segments (stacking order, top → down)")]
         [Tooltip("Fixed TOP group in order — e.g. [freeze_start, freeze_midA].")]
@@ -132,7 +144,9 @@ namespace Sort
             targetWidth *= Mathf.Max(0.01f, widthPadding);
 
             float widthScale = manualScale;
-            GameObject firstPrefab = First(headSegments) ?? middleSegment ?? First(tailSegments);
+            GameObject firstPrefab = (fillMode == FillMode.SingleBlock)
+                ? singleBlockSegment
+                : (First(headSegments) ?? middleSegment ?? First(tailSegments));
             if (autoFitWidth && firstPrefab != null)
             {
                 var probe = Spawn(firstPrefab, manualScale);
@@ -142,6 +156,18 @@ namespace Sort
             }
 
             float overlapBoost = 1f + Mathf.Clamp01(seamOverlap);
+
+            // SingleBlock mode: skip the head/middle/tail assembly — one full freeze mesh covers the column.
+            if (fillMode == FillMode.SingleBlock)
+            {
+                if (singleBlockSegment != null)
+                    BuildSingleBlock(col, up, centreW, cover, widthScale);
+                else
+                    Debug.LogWarning($"[FrozenColumnIce] Fill Mode = SingleBlock but no Single Block Segment " +
+                                     $"assigned ('{col.name}').", this);
+                PlaceLabel(col, centreW, targetWidth);
+                return;
+            }
 
             // Spawn segments at their NATURAL size and measure each along the column, so their PROPORTIONS
             // are preserved (a start cap stays cap-shaped, a mid stays mid-shaped). We then fit the WHOLE
@@ -200,25 +226,44 @@ namespace Sort
             for (int i = 0; i < midGOs.Count; i++)  FitPlace(midGOs[i],  up, col, topEdge, lmB,      lmB * k * midScale, overlapBoost, ref cursor);
             for (int i = 0; i < tailGOs.Count; i++) FitPlace(tailGOs[i], up, col, topEdge, tailL[i], tailL[i] * k, overlapBoost, ref cursor);
 
-            if (thresholdLabel != null)
-            {
-                thresholdLabel.transform.position = centreW + col.transform.TransformVector(labelLocalOffset);
-                // Counter the parent's (column/board) non-uniform scale so the number renders square, not
-                // squished: world scale becomes uniform = labelScale on every axis.
-                var parent = thresholdLabel.transform.parent;
-                Vector3 pls = parent != null ? parent.lossyScale : Vector3.one;
-                // Scale the number with the column's WIDTH so it auto-fits: small column → small number.
-                // (labelScale is a fraction of that width; the /lossyScale counters the column's own scale.)
-                float fit = Mathf.Max(1e-4f, targetWidth);
-                thresholdLabel.transform.localScale = new Vector3(
-                    labelScale.x * fit / Mathf.Max(1e-4f, Mathf.Abs(pls.x)),
-                    labelScale.y * fit / Mathf.Max(1e-4f, Mathf.Abs(pls.y)),
-                    labelScale.z * fit / Mathf.Max(1e-4f, Mathf.Abs(pls.z)));
-            }
+            PlaceLabel(col, centreW, targetWidth);
 
 #if UNITY_EDITOR
             Debug.Log($"[FrozenColumnIce] built {built.Count} segment(s) over '{col.name}' ({n} rows, {middleFill}).");
 #endif
+        }
+
+        // Single full-block mode: ONE freeze mesh (e.g. freeze.fbx) scaled to cover the whole column —
+        // width fit to the column (baked into widthScale), length stretched to span top→bottom pieces.
+        // No seams, so no overlap boost. Tune overshoot via Single Block Length Padding, orientation via
+        // Segment Local Euler.
+        void BuildSingleBlock(Column col, Vector3 up, Vector3 centreW, float cover, float widthScale)
+        {
+            var go = Spawn(singleBlockSegment, widthScale);
+            float natLen = Extent(go, up, cover);
+            float targetLen = cover * Mathf.Max(0.01f, singleBlockLengthPadding);
+            float f = (natLen > 1e-4f) ? (targetLen / natLen) : 1f;
+            ScaleLength(go, up, f);
+            // Land the block's VISUAL (renderer-bounds) centre on the column centre, then apply the local nudge.
+            go.transform.position = centreW;
+            Vector3 bc = BoundsCenter(go);
+            go.transform.position = centreW - (bc - centreW) + col.transform.TransformVector(segmentLocalOffset);
+        }
+
+        // Positions + auto-sizes the count label over the column centre (shared by both fill modes).
+        void PlaceLabel(Column col, Vector3 centreW, float targetWidth)
+        {
+            if (thresholdLabel == null) return;
+            thresholdLabel.transform.position = centreW + col.transform.TransformVector(labelLocalOffset);
+            // Counter the parent's (column/board) non-uniform scale so the number renders square, not squished.
+            var parent = thresholdLabel.transform.parent;
+            Vector3 pls = parent != null ? parent.lossyScale : Vector3.one;
+            // Scale the number with the column WIDTH so it auto-fits: small column → small number.
+            float fit = Mathf.Max(1e-4f, targetWidth);
+            thresholdLabel.transform.localScale = new Vector3(
+                labelScale.x * fit / Mathf.Max(1e-4f, Mathf.Abs(pls.x)),
+                labelScale.y * fit / Mathf.Max(1e-4f, Mathf.Abs(pls.y)),
+                labelScale.z * fit / Mathf.Max(1e-4f, Mathf.Abs(pls.z)));
         }
 
         // ---- helpers ----

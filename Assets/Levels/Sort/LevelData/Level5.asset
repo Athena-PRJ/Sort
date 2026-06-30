@@ -14,25 +14,37 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Sort.LevelData
   levelNumber: 5
   difficulty: 0
-  piecePrefab: {fileID: 8595755308906869233, guid: dfdf8c852b0e5104184c4e0f60f2ebb9, type: 3}
+  piecePrefab: {fileID: 6872829844506849547, guid: ed6e4366d1c6d784e9446cdceea23d10, type: 3}
   paletteStyle: 0
   themeSet: {fileID: 11400000, guid: 9d65a4569fa0b724b91b800c6f9f3b67, type: 2}
   moveLimit: 30
   startingHeldPiece:
-    color: Red
-    isRainbow: 1
+    color: Purple8
+    isRainbow: 0
     isQuestionmark: 0
+    innerColor: 
   columns:
   - pieces:
-    - color: Red
-      isRainbow: 0
-      isQuestionmark: 1
-    - color: Brown
-      isRainbow: 0
-      isQuestionmark: 1
-    - color: Green
+    - color: Green23
       isRainbow: 0
       isQuestionmark: 0
+      innerColor: 
+    - color: Green23
+      isRainbow: 0
+      isQuestionmark: 0
+      innerColor: 
+    - color: Orange6
+      isRainbow: 0
+      isQuestionmark: 0
+      innerColor: 
+    - color: Red13
+      isRainbow: 0
+      isQuestionmark: 0
+      innerColor: 
+    - color: Green23
+      isRainbow: 0
+      isQuestionmark: 0
+      innerColor: 
     lockColorStack: 0
     requiredColor: 
     lockColorUnlockThreshold: 1
@@ -40,15 +52,26 @@ MonoBehaviour:
     onlyStackColor: 
     breakWallStack: 0
   - pieces:
-    - color: Red
-      isRainbow: 0
-      isQuestionmark: 1
-    - color: Brown
-      isRainbow: 0
-      isQuestionmark: 1
-    - color: Green
+    - color: Blue20
       isRainbow: 0
       isQuestionmark: 0
+      innerColor: 
+    - color: Orange6
+      isRainbow: 0
+      isQuestionmark: 0
+      innerColor: 
+    - color: Orange6
+      isRainbow: 0
+      isQuestionmark: 0
+      innerColor: 
+    - color: Blue20
+      isRainbow: 0
+      isQuestionmark: 0
+      innerColor: 
+    - color: Purple8
+      isRainbow: 0
+      isQuestionmark: 0
+      innerColor: 
     lockColorStack: 0
     requiredColor: 
     lockColorUnlockThreshold: 1
@@ -56,15 +79,80 @@ MonoBehaviour:
     onlyStackColor: 
     breakWallStack: 0
   - pieces:
-    - color: Brown
-      isRainbow: 0
-      isQuestionmark: 1
-    - color: Green
-      isRainbow: 0
-      isQuestionmark: 1
-    - color: Red
+    - color: Orange6
       isRainbow: 0
       isQuestionmark: 0
+      innerColor: 
+    - color: Orange6
+      isRainbow: 0
+      isQuestionmark: 0
+      innerColor: 
+    - color: Green25
+      isRainbow: 1
+      isQuestionmark: 0
+      innerColor: 
+    - color: Red13
+      isRainbow: 0
+      isQuestionmark: 0
+      innerColor: 
+    - color: Red13
+      isRainbow: 0
+      isQuestionmark: 0
+      innerColor: 
+    lockColorStack: 0
+    requiredColor: 
+    lockColorUnlockThreshold: 1
+    onlyStackSort: 0
+    onlyStackColor: 
+    breakWallStack: 0
+  - pieces:
+    - color: Red13
+      isRainbow: 0
+      isQuestionmark: 0
+      innerColor: 
+    - color: Blue20
+      isRainbow: 0
+      isQuestionmark: 0
+      innerColor: 
+    - color: Blue20
+      isRainbow: 0
+      isQuestionmark: 0
+      innerColor: 
+    - color: Red13
+      isRainbow: 0
+      isQuestionmark: 0
+      innerColor: 
+    - color: Green23
+      isRainbow: 0
+      isQuestionmark: 0
+      innerColor: 
+    lockColorStack: 0
+    requiredColor: 
+    lockColorUnlockThreshold: 1
+    onlyStackSort: 0
+    onlyStackColor: 
+    breakWallStack: 0
+  - pieces:
+    - color: Purple8
+      isRainbow: 0
+      isQuestionmark: 0
+      innerColor: 
+    - color: Purple8
+      isRainbow: 0
+      isQuestionmark: 0
+      innerColor: 
+    - color: Blue20
+      isRainbow: 0
+      isQuestionmark: 0
+      innerColor: 
+    - color: Purple8
+      isRainbow: 0
+      isQuestionmark: 0
+      innerColor: 
+    - color: Green23
+      isRainbow: 0
+      isQuestionmark: 0
+      innerColor: 
     lockColorStack: 0
     requiredColor: 
     lockColorUnlockThreshold: 1
@@ -77,5 +165,3 @@ MonoBehaviour:
   questionmarkRevealFromBottom: 1
   coinReward: 100
   freeRewindUses: 0
-  unlocksSwitchOnCompletion: 0
-  unlocksMagnetOnCompletion: 1

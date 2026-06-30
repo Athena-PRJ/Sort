@@ -14,8 +14,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Sort.UiThemePalette
   mainBoardSprite: {fileID: 21300000, guid: 0b53c408b48ea364d88ee55fcdfc18df, type: 3}
   backgroundSprite: {fileID: 21300000, guid: aeb04b9675e969d4ab2ba5e66f3f4e40, type: 3}
-  mainBoardTint: {r: 0.90188676, g: 0.22291917, b: 0.24198206, a: 1}
-  backgroundTint: {r: 0.15686275, g: 0.21568628, b: 0.54901963, a: 1}
+  mainBoardTint: {r: 0.2999999, g: 0.8129723, b: 1, a: 1}
+  backgroundTint: {r: 0.85660374, g: 0.85660374, b: 0.85660374, a: 1}
   themedSprites:
   - key: 1
     sprite: {fileID: 3286163911610860551, guid: 2b396050da1da2c4f9688f83eb128fa7, type: 3}

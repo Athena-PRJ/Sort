@@ -65,9 +65,12 @@ namespace Sort.EditorTools
 
                 EditorGUILayout.HelpBox(
                     $"To make this level valid:\n" +
-                    $"  • Use exactly {result.columnCount} distinct non-Rainbow colors.\n" +
-                    $"  • Each of those colors must appear ≥ {result.rowCount} times across columns + the held piece.\n" +
-                    $"  • Questionmarks count as their underlying color. Rainbow pieces don't count.\n" +
+                    $"  • The non-Rainbow colors must fill all {result.columnCount} columns. A color fills " +
+                    $"(count ÷ {result.rowCount}) WHOLE columns and ONE color may fill several columns " +
+                    $"(e.g. 2 orange + 2 green + 1 white = 5).\n" +
+                    $"  • Give each color a count in multiples of {result.rowCount} so it forms whole columns; " +
+                    $"the totals across all colors must add up to {result.columnCount} columns.\n" +
+                    $"  • Questionmarks count as their underlying color. Rainbow pieces don't count (they're the leftover).\n" +
                     $"  • A column can't be both a Frozen (Break Wall) and a Lock Color Stack column.\n" +
                     $"  • Gated columns must be unlockable by completing others (no freeze deadlock).\n" +
                     $"  • An Only Stack Sort column's color must exist, and no more columns can be restricted\n" +

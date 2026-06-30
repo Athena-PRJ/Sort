@@ -17,22 +17,34 @@ MonoBehaviour:
   piecePrefab: {fileID: 6872829844506849547, guid: ed6e4366d1c6d784e9446cdceea23d10, type: 3}
   paletteStyle: 0
   themeSet: {fileID: 11400000, guid: 9d65a4569fa0b724b91b800c6f9f3b67, type: 2}
-  moveLimit: 20
+  moveLimit: 60
   startingHeldPiece:
-    color: Cactus
+    color: Yellow4
     isRainbow: 1
     isQuestionmark: 0
+    innerColor: 
   columns:
   - pieces:
-    - color: Black
-      isRainbow: 0
-      isQuestionmark: 1
-    - color: Black
+    - color: Red13
       isRainbow: 0
       isQuestionmark: 0
-    - color: Red
+      innerColor: 
+    - color: Red13
       isRainbow: 0
       isQuestionmark: 0
+      innerColor: 
+    - color: Red13
+      isRainbow: 0
+      isQuestionmark: 0
+      innerColor: 
+    - color: Red13
+      isRainbow: 0
+      isQuestionmark: 0
+      innerColor: 
+    - color: Blue16
+      isRainbow: 0
+      isQuestionmark: 0
+      innerColor: 
     lockColorStack: 0
     requiredColor: 
     lockColorUnlockThreshold: 1
@@ -40,15 +52,80 @@ MonoBehaviour:
     onlyStackColor: 
     breakWallStack: 0
   - pieces:
-    - color: Red
+    - color: Green23
       isRainbow: 0
       isQuestionmark: 0
-    - color: Black
-      isRainbow: 0
-      isQuestionmark: 1
-    - color: Red
+      innerColor: 
+    - color: Green23
       isRainbow: 0
       isQuestionmark: 0
+      innerColor: 
+    - color: Green23
+      isRainbow: 0
+      isQuestionmark: 0
+      innerColor: 
+    - color: Green23
+      isRainbow: 0
+      isQuestionmark: 0
+      innerColor: 
+    - color: Red13
+      isRainbow: 0
+      isQuestionmark: 0
+      innerColor: 
+    lockColorStack: 0
+    requiredColor: 
+    lockColorUnlockThreshold: 1
+    onlyStackSort: 0
+    onlyStackColor: 
+    breakWallStack: 0
+  - pieces:
+    - color: Blue16
+      isRainbow: 0
+      isQuestionmark: 0
+      innerColor: 
+    - color: Blue16
+      isRainbow: 0
+      isQuestionmark: 0
+      innerColor: 
+    - color: Blue16
+      isRainbow: 0
+      isQuestionmark: 0
+      innerColor: 
+    - color: Yellow3
+      isRainbow: 0
+      isQuestionmark: 0
+      innerColor: 
+    - color: Yellow3
+      isRainbow: 0
+      isQuestionmark: 0
+      innerColor: 
+    lockColorStack: 0
+    requiredColor: 
+    lockColorUnlockThreshold: 1
+    onlyStackSort: 0
+    onlyStackColor: 
+    breakWallStack: 0
+  - pieces:
+    - color: Yellow3
+      isRainbow: 0
+      isQuestionmark: 0
+      innerColor: 
+    - color: Yellow3
+      isRainbow: 0
+      isQuestionmark: 0
+      innerColor: 
+    - color: Yellow3
+      isRainbow: 0
+      isQuestionmark: 0
+      innerColor: 
+    - color: Blue16
+      isRainbow: 0
+      isQuestionmark: 0
+      innerColor: 
+    - color: Green23
+      isRainbow: 0
+      isQuestionmark: 0
+      innerColor: 
     lockColorStack: 0
     requiredColor: 
     lockColorUnlockThreshold: 1
@@ -61,5 +138,3 @@ MonoBehaviour:
   questionmarkRevealFromBottom: 1
   coinReward: 50
   freeRewindUses: 0
-  unlocksSwitchOnCompletion: 1
-  unlocksMagnetOnCompletion: 0
