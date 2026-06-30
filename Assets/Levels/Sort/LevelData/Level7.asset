@@ -13,79 +13,155 @@ MonoBehaviour:
   m_Name: Level7
   m_EditorClassIdentifier: Assembly-CSharp::Sort.LevelData
   levelNumber: 7
-  difficulty: 2
-  piecePrefab: {fileID: 2697371083170223703, guid: 12b960f967f10bf4dad210ed95c13691, type: 3}
+  difficulty: 0
+  piecePrefab: {fileID: 6872829844506849547, guid: ed6e4366d1c6d784e9446cdceea23d10, type: 3}
   paletteStyle: 0
-  themeSet: {fileID: 11400000, guid: 99a32d06eb5024c48b260b1915804a87, type: 2}
-  moveLimit: 18
+  themeSet: {fileID: 11400000, guid: 9d65a4569fa0b724b91b800c6f9f3b67, type: 2}
+  moveLimit: 45
   startingHeldPiece:
-    color: Blue
-    isRainbow: 1
+    color: White26
+    isRainbow: 0
     isQuestionmark: 0
+    innerColor: 
   columns:
   - pieces:
-    - color: Blue
+    - color: White26
       isRainbow: 0
       isQuestionmark: 0
-    - color: Blue
+      innerColor: 
+    - color: White26
       isRainbow: 0
       isQuestionmark: 0
-    - color: Orange
+      innerColor: 
+    - color: White26
       isRainbow: 0
       isQuestionmark: 0
-    - color: White
+      innerColor: 
+    - color: Orange6
       isRainbow: 0
       isQuestionmark: 0
+      innerColor: 
+    - color: Green23
+      isRainbow: 0
+      isQuestionmark: 0
+      innerColor: 
     lockColorStack: 0
     requiredColor: Magenta
     lockColorUnlockThreshold: 1
     onlyStackSort: 0
     onlyStackColor: Magenta
+    breakWallStack: 0
   - pieces:
-    - color: Blue
-      isRainbow: 0
-      isQuestionmark: 1
-    - color: Orange
+    - color: Orange6
       isRainbow: 0
       isQuestionmark: 0
-    - color: White
+      innerColor: 
+    - color: Orange6
       isRainbow: 0
       isQuestionmark: 0
-    - color: White
+      innerColor: 
+    - color: Yellow3
       isRainbow: 0
       isQuestionmark: 0
+      innerColor: 
+    - color: Orange6
+      isRainbow: 0
+      isQuestionmark: 0
+      innerColor: 
+    - color: Yellow3
+      isRainbow: 0
+      isQuestionmark: 0
+      innerColor: 
     lockColorStack: 0
     requiredColor: Magenta
     lockColorUnlockThreshold: 1
     onlyStackSort: 0
     onlyStackColor: Magenta
+    breakWallStack: 0
   - pieces:
-    - color: White
-      isRainbow: 0
-      isQuestionmark: 1
-    - color: Orange
-      isRainbow: 0
-      isQuestionmark: 1
-    - color: Orange
+    - color: Blue16
       isRainbow: 0
       isQuestionmark: 0
-    - color: Blue
+      innerColor: 
+    - color: Blue16
       isRainbow: 0
       isQuestionmark: 0
+      innerColor: 
+    - color: Red12
+      isRainbow: 1
+      isQuestionmark: 0
+      innerColor: 
+    - color: Blue16
+      isRainbow: 0
+      isQuestionmark: 0
+      innerColor: 
+    - color: Green23
+      isRainbow: 0
+      isQuestionmark: 0
+      innerColor: 
     lockColorStack: 0
     requiredColor: Magenta
     lockColorUnlockThreshold: 1
     onlyStackSort: 0
     onlyStackColor: Magenta
-  ties:
-  - columnA: 0
-    row: 1
-  - columnA: 1
-    row: 2
+    breakWallStack: 0
+  - pieces:
+    - color: Yellow3
+      isRainbow: 0
+      isQuestionmark: 0
+      innerColor: 
+    - color: Yellow3
+      isRainbow: 0
+      isQuestionmark: 0
+      innerColor: 
+    - color: Orange6
+      isRainbow: 0
+      isQuestionmark: 0
+      innerColor: 
+    - color: Blue16
+      isRainbow: 0
+      isQuestionmark: 0
+      innerColor: 
+    - color: Green23
+      isRainbow: 0
+      isQuestionmark: 0
+      innerColor: 
+    lockColorStack: 0
+    requiredColor: Magenta
+    lockColorUnlockThreshold: 1
+    onlyStackSort: 0
+    onlyStackColor: Magenta
+    breakWallStack: 0
+  - pieces:
+    - color: Green23
+      isRainbow: 0
+      isQuestionmark: 0
+      innerColor: 
+    - color: Green23
+      isRainbow: 0
+      isQuestionmark: 0
+      innerColor: 
+    - color: Blue16
+      isRainbow: 0
+      isQuestionmark: 0
+      innerColor: 
+    - color: Yellow3
+      isRainbow: 0
+      isQuestionmark: 0
+      innerColor: 
+    - color: White26
+      isRainbow: 0
+      isQuestionmark: 0
+      innerColor: 
+    lockColorStack: 0
+    requiredColor: Magenta
+    lockColorUnlockThreshold: 1
+    onlyStackSort: 0
+    onlyStackColor: Magenta
+    breakWallStack: 0
+  ties: []
   frozenColumns: []
   nextLevel: {fileID: 11400000, guid: b9404d40d2991d24ab88ca3587ba45bf, type: 2}
   questionmarkRevealFromBottom: 1
   coinReward: 20
   freeRewindUses: 1
-  unlocksSwitchOnCompletion: 0
-  unlocksMagnetOnCompletion: 0

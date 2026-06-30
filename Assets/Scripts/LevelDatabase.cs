@@ -51,6 +51,13 @@ namespace Sort
         [Tooltip("All level nodes in play order. Node [0] is the first level the player sees.")]
         public List<LevelNode> nodes = new List<LevelNode>();
 
+        [Header("Skill unlock levels (SINGLE source of truth — set ONCE here)")]
+        [Tooltip("The skill becomes available once the player has REACHED this level number. " +
+                 "No per-LevelData flags — tune the three numbers here and the whole game obeys.")]
+        [Min(1)] public int rewindUnlockLevel = 7;
+        [Min(1)] public int switchUnlockLevel = 12;
+        [Min(1)] public int magnetUnlockLevel = 15;
+
         static LevelDatabase _instance;
         /// <summary>Auto-loaded from Resources/LevelDatabase (same pattern as EconomyConfig). Null if missing.</summary>
         public static LevelDatabase Instance
@@ -81,26 +88,18 @@ namespace Sort
             node != null && LevelProgress.IsUnlocked(node.number);
 
         /// <summary>
-        /// Lowest node number whose ANY stage flags this skill's unlock-on-completion, or 0 if none.
-        /// Used by the UI to label a locked skill ("unlocks at Lv N") — works in the MainMenu because it
-        /// reads the database, not the runtime LevelLoader chain.
+        /// The level number at which <paramref name="skill"/> unlocks — the single tunable threshold above.
+        /// Used both to gate the skill (SkillProgress) and to label a locked skill icon ("Lvl N").
         /// </summary>
         public int GetSkillUnlockNumber(SkillType skill)
         {
-            if (skill == SkillType.Rewind || nodes == null) return 0;
-            for (int i = 0; i < nodes.Count; i++)
+            switch (skill)
             {
-                var node = nodes[i];
-                if (node == null || node.stages == null) continue;
-                for (int s = 0; s < node.stages.Count; s++)
-                {
-                    var lvl = node.stages[s];
-                    if (lvl == null) continue;
-                    if (skill == SkillType.Switch && lvl.unlocksSwitchOnCompletion) return node.number;
-                    if (skill == SkillType.Magnet && lvl.unlocksMagnetOnCompletion) return node.number;
-                }
+                case SkillType.Rewind: return rewindUnlockLevel;
+                case SkillType.Switch: return switchUnlockLevel;
+                case SkillType.Magnet: return magnetUnlockLevel;
+                default: return 0;
             }
-            return 0;
         }
     }
 }

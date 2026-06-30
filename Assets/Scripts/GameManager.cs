@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Collections.Generic;
 using Sort.Monetization;
 using TMPro;
@@ -281,8 +282,27 @@ namespace Sort
         {
             lockedCount++;
             UpdateFrozenColumns();
+            UpdateThreadColumns(c);
             LogProgress();
             CheckWin();
+        }
+
+        /// <summary>
+        /// Thread mechanic (independent): when a column completes, unlock every Thread column whose required
+        /// color matches the just-completed column's color — its overlay plays the unlock animation and the
+        /// column becomes playable.
+        /// </summary>
+        void UpdateThreadColumns(Column lockedCol)
+        {
+            if (lockedCol == null || !lockedCol.TryGetMonoColor(out var color) || string.IsNullOrEmpty(color)) return;
+            for (int i = 0; i < columns.Count; i++)
+            {
+                var col = columns[i];
+                if (col == null || !col.IsThreaded || col.ThreadColor != color) continue;
+                col.RemoveThread();
+                var overlay = col.GetComponentInChildren<ThreadColumnOverlay>(true);
+                if (overlay != null) overlay.PlayUnlock();
+            }
         }
 
         /// <summary>
@@ -330,7 +350,9 @@ namespace Sort
                     remaining = col.InitialFrozenThreshold - progress;
                 }
 
-                var overlay = col.GetComponentInChildren<FrozenOverlay>(true);
+                // Either FrozenOverlay (2D) or FrozenColumnIce (3D) — both implement IFrozenOverlay.
+                var overlay = col.GetComponentInChildren<IFrozenOverlay>(true);
+                var overlayGo = (overlay as Component) != null ? ((Component)overlay).gameObject : null;
 
                 if (shouldBeFrozen)
                 {
@@ -342,14 +364,14 @@ namespace Sort
                     }
                     if (overlay != null)
                     {
-                        if (!overlay.gameObject.activeSelf) overlay.gameObject.SetActive(true);
+                        if (overlayGo != null && !overlayGo.activeSelf) overlayGo.SetActive(true);
                         overlay.SetRemaining(remaining);
                     }
                 }
                 else
                 {
                     if (col.IsFrozen) { col.Unfreeze(); SfxManager.Play(SfxId.Unfreeze); }
-                    if (overlay != null && overlay.gameObject.activeSelf) overlay.gameObject.SetActive(false);
+                    if (overlayGo != null && overlayGo.activeSelf) overlayGo.SetActive(false);
                 }
             }
         }
@@ -384,26 +406,36 @@ namespace Sort
             if (IsWon || IsLost) return;
             if (columns.Count > 0 && lockedCount >= columns.Count)
             {
+                // Mark won immediately so input + skills are blocked (IsGameOver) during the win delay,
+                // then refresh UI; the panel + rewards come after the pause so the final celebration shows.
                 IsWon = true;
-                SfxManager.Play(SfxId.Win);
-                if (winPanel != null) winPanel.SetActive(true);
-
-                var loader = LevelLoader.Instance;
-                if (loader != null && loader.CurrentLevel != null)
-                {
-                    LevelProgress.MarkCompleted(loader.CurrentLevel.levelNumber);
-                    PlayerEconomy.AddCoins(loader.CurrentLevel.coinReward);
-
-                    // Persistent skill unlocks driven by per-LevelData flags. The skill stays
-                    // unlocked across runs and across other levels.
-                    if (loader.CurrentLevel.unlocksSwitchOnCompletion) SkillProgress.Unlock(SkillType.Switch);
-                    if (loader.CurrentLevel.unlocksMagnetOnCompletion) SkillProgress.Unlock(SkillType.Magnet);
-                }
-
-                Debug.Log("Sort: player wins!");
-                onWin?.Invoke();
                 StateChanged?.Invoke();
+                StartCoroutine(WinSequence());
             }
+        }
+
+        /// <summary>Waits <see cref="PlayerHand.WinCompleteDelay"/> (tunable on PlayerHand, with the other
+        /// pacing knobs) so the last column's celebration plays, then reveals the Win panel + grants rewards.</summary>
+        IEnumerator WinSequence()
+        {
+            float delay = PlayerHand.Instance != null ? PlayerHand.Instance.WinCompleteDelay : 0f;
+            if (delay > 0f) yield return new WaitForSeconds(delay);
+
+            SfxManager.Play(SfxId.Win);
+            if (winPanel != null) winPanel.SetActive(true);
+
+            var loader = LevelLoader.Instance;
+            if (loader != null && loader.CurrentLevel != null)
+            {
+                LevelProgress.MarkCompleted(loader.CurrentLevel.levelNumber);
+                PlayerEconomy.AddCoins(loader.CurrentLevel.coinReward);
+                // Skill unlocks are derived from level reached (LevelDatabase thresholds) — completing
+                // a level bumps HighestUnlocked above, which is all SkillProgress.IsUnlocked needs.
+            }
+
+            Debug.Log("Sort: player wins!");
+            onWin?.Invoke();
+            StateChanged?.Invoke();
         }
 
         void Lose()

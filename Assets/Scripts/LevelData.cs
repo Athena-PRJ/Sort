@@ -54,6 +54,12 @@ namespace Sort
                  "frozen columns per level are supported.")]
         public FrozenColumnConfig[] frozenColumns = new FrozenColumnConfig[0];
 
+        [Tooltip("Thread columns: each listed column starts COVERED by a Thread (like Frozen) and is " +
+                 "blocked until the player completes ANY column whose color matches the thread's Required " +
+                 "Color — then the Thread plays its unlock animation and the column becomes playable. " +
+                 "Independent from the Frozen mechanics.")]
+        public ThreadConfig[] threadColumns = new ThreadConfig[0];
+
         [Tooltip("The level that follows this one. Used by the 'Next Level' button.")]
         public LevelData nextLevel;
 
@@ -67,18 +73,18 @@ namespace Sort
         [Tooltip("Number of free Rewind uses on this level. After they run out, the player must spend coins for more.")]
         [Min(0)] public int freeRewindUses = 1;
 
-        [Tooltip("If true, completing this level permanently unlocks the Switch skill for the player. " +
-                 "Multiple levels can be flagged — the skill unlocks the first time ANY flagged level is cleared.")]
-        public bool unlocksSwitchOnCompletion = false;
-
-        [Tooltip("If true, completing this level permanently unlocks the Magnet skill for the player. " +
-                 "Multiple levels can be flagged — the skill unlocks the first time ANY flagged level is cleared.")]
-        public bool unlocksMagnetOnCompletion = false;
+        // Skill unlocks are NO LONGER per-level flags — the unlock LEVELS live once on LevelDatabase
+        // (rewind/switch/magnetUnlockLevel) and SkillProgress derives unlock from the level reached.
 
         /// <summary>Per-theme board frame sprite (from themeSet), or null.</summary>
         public Sprite MainBoardSprite  => themeSet != null ? themeSet.mainBoardSprite  : null;
         /// <summary>Per-theme background sprite (from themeSet), or null.</summary>
         public Sprite BackgroundSprite => themeSet != null ? themeSet.backgroundSprite : null;
+
+        /// <summary>Per-theme board recolor tint (from themeSet), white if no theme.</summary>
+        public Color MainBoardTint  => themeSet != null ? themeSet.mainBoardTint  : Color.white;
+        /// <summary>Per-theme background recolor tint (from themeSet), white if no theme.</summary>
+        public Color BackgroundTint => themeSet != null ? themeSet.backgroundTint : Color.white;
 
         // White fallback shared across levels that haven't picked a themeSet (keeps GetThemeColor non-null).
         static GradientColor _defaultTheme;
@@ -99,8 +105,10 @@ namespace Sort
         }
 
         /// <summary>
-        /// Checks that this level is solvable: same number of distinct non-rainbow colors as columns,
-        /// each color appearing at least once per column row.
+        /// Checks that this level is solvable: the non-rainbow colors can fill every column, where a
+        /// single color may fill MULTIPLE columns (count ÷ rows whole columns each), so the colors
+        /// together form at least `columns` full columns. Questionmarks count as their underlying color;
+        /// rainbows are the leftover and don't count.
         /// </summary>
         public ValidationResult Validate()
         {
@@ -159,19 +167,29 @@ namespace Sort
             result.colorCounts = colorCounts;
             result.rainbowCount = rainbowCount;
 
-            // Rule 2: distinct color count must equal column count.
-            if (colorCounts.Count != columns.Length)
+            // Rule 2: the colors must be able to fill EVERY column. A color fills floor(count / rowCount)
+            // WHOLE columns, and a single color may fill MULTIPLE columns (e.g. 2 orange + 2 green + 1
+            // white = 5 columns from 3 colors). The level is fillable when the colors together form at
+            // least `columns` full columns. The +1 held piece and rainbows are the natural leftover, so we
+            // do NOT require the distinct-color count to equal the column count (that was the old bug).
+            int columnsFormable = 0;
+            foreach (var kv in colorCounts) columnsFormable += kv.Value / rowCount;
+            if (columnsFormable < columns.Length)
             {
-                var listed = colorCounts.Count == 0 ? "<none>" : string.Join(", ", colorCounts.Keys);
                 result.errors.Add(
-                    $"Expected exactly {columns.Length} distinct colors (one per column), but found {colorCounts.Count}: [{listed}].");
+                    $"The colors can only fill {columnsFormable} full column(s) but the level has {columns.Length}. " +
+                    $"Give each color a count in multiples of {rowCount} (one color may fill several columns). " +
+                    $"See the color counts above.");
             }
 
-            // Rule 3: every color must have at least rowCount pieces.
+            // Rule 3: a color that appears but can't even fill ONE full column (and isn't just the single
+            // leftover held piece) leaves stuck pieces. Flag colors with fewer than rowCount pieces UNLESS
+            // it's a lone piece that can sit in the hand as the leftover.
             foreach (var kv in colorCounts)
             {
-                if (kv.Value < rowCount)
-                    result.errors.Add($"Color '{kv.Key}' has only {kv.Value} pieces — needs at least {rowCount} (one full column).");
+                if (kv.Value < rowCount && kv.Value > 1)
+                    result.errors.Add($"Color '{kv.Key}' has {kv.Value} pieces — too few to fill a column ({rowCount}) " +
+                                       $"and too many to be the single leftover; those pieces can't be sorted.");
             }
 
             // Rule 4 (ties): each tie must reference a valid adjacent-column pair + valid row,
@@ -551,11 +569,38 @@ namespace Sort
     }
 
     /// <summary>
+    /// Thread column (independent mechanic): the column starts covered by a Thread tinted
+    /// <see cref="requiredColor"/> and blocked. When the player completes ANY column whose mono color
+    /// equals requiredColor, the Thread unlocks (plays thread_anim) and this column becomes playable.
+    /// </summary>
+    [System.Serializable]
+    public class ThreadConfig
+    {
+        [Tooltip("0-based index of the column that starts covered by a Thread.")]
+        public int columnIndex;
+
+        [PaletteColor]
+        [Tooltip("Pick the PIECE color that unlocks this Thread (e.g. Red11). Unlock fires when the player " +
+                 "completes a column of this exact color. Add a ThreadColumnOverlay 'Color Materials' entry " +
+                 "with the SAME name (Red11 → red thread material) so the cover is tinted to match.")]
+        public string requiredColor = "";
+    }
+
+    /// <summary>
     /// Designer-authored tie binding two pieces at the same row in adjacent columns.
     /// The right column is implicitly <c>columnA + 1</c>. At runtime LevelLoader resolves the
     /// two Piece instances and wires <see cref="Piece.TiedPartner"/> on both sides; click-time
     /// shift logic (Phase B) then walks the tied-partner graph to find which columns move together.
     /// </summary>
+    /// <summary>Which visual binds a tied pair. Both share the SAME shift/break mechanic — only the look differs.</summary>
+    public enum BondStyle
+    {
+        /// <summary>The X-shape <see cref="TieVisual"/> (crack + fade on break).</summary>
+        Tie,
+        /// <summary>The <see cref="LockVisual"/> bar — two end caps + a long middle bar spanning the columns (splits apart on break).</summary>
+        Lock
+    }
+
     [System.Serializable]
     public class TieConfig
     {
@@ -566,6 +611,16 @@ namespace Sort
 
         [Tooltip("Row index (0 = top). Both tied pieces sit at this row. Must be in [0, rowCount - 1].")]
         public int row;
+
+        [Tooltip("Visual style for this bond. Tie = X-shape (crack+fade). Lock = a bar with two end caps " +
+                 "spanning the columns (splits apart on break). Identical movement/break mechanic — " +
+                 "only the spawned visual prefab differs (TieVisual vs LockVisual on LevelLoader).")]
+        public BondStyle bondStyle = BondStyle.Tie;
+
+        [Tooltip("How many ADJACENT columns this bond links, starting at columnA (2 = the classic pair " +
+                 "columnA & columnA+1). 3+ ties columnA..columnA+span-1 together at this row and (for Lock) " +
+                 "draws ONE bar spanning them all. Must fit: columnA + span - 1 ≤ last column.")]
+        [Min(2)] public int columnSpan = 2;
     }
 
     [System.Serializable]
@@ -579,5 +634,13 @@ namespace Sort
 
         [Tooltip("Hidden — shows as '?' until pushed near the bottom of its column, then reveals its true color.")]
         public bool isQuestionmark;
+
+        [PaletteColor]
+        [Tooltip("Tile-In-Tile (2-layer). If set, the piece shows a smaller INNER layer of THIS color " +
+                 "inside the outer 'color'. The piece sorts as its OUTER color; when a column becomes " +
+                 "uniform in that outer color (mixing with 1-layer pieces is fine), the 2-layer pieces flip " +
+                 "and turn FULLY into this inner color — the column does NOT finish, you keep playing with " +
+                 "the new color. Leave empty for a normal 1-layer piece.")]
+        public string innerColor = "";
     }
 }

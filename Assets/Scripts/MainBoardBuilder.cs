@@ -62,6 +62,10 @@ namespace Sort
         [Tooltip("Horizontal spacing between indicators (column → column). 0 = AUTO: matches " +
                  "Board.ColumnSpacing so each icon sits over its column. Set > 0 to override.")]
         [SerializeField] private float columnSpacingOverride = 0f;
+        [Tooltip("Spreads the indicators horizontally OUT from the board centre (1 = directly over each " +
+                 "column, >1 = wider apart, <1 = closer). Use this when scaled-up icons sit too close " +
+                 "together — it moves them apart without changing their size.")]
+        [SerializeField] private float indicatorSpreadX = 1f;
 
         [Header("Sorting")]
         [Tooltip("SpriteRenderer sorting order (tick draws at +1 so it sits over the done icon).")]
@@ -75,6 +79,26 @@ namespace Sort
         [SerializeField] private Sprite notDoneSprite;  // marker inside the In frame while unsolved
         [SerializeField] private Sprite tickSprite;     // shown on lock
         [SerializeField] private Sprite outSprite;      // 'out' arrow below each column
+
+        [Header("Indicator shadows (optional — drawn BEHIND the icon, follow show/hide)")]
+        [Tooltip("Shadow behind the Not-Done (arrow) icon — e.g. arrow_shadow. Spawned as a child so it " +
+                 "hides/shows with the arrow. Leave null for none.")]
+        [SerializeField] private Sprite notDoneShadowSprite;
+        [Tooltip("Shadow behind the Tick icon — e.g. tick_shadow.")]
+        [SerializeField] private Sprite tickShadowSprite;
+        [Tooltip("Shadow behind the bottom Out arrow — optional (e.g. arrow_shadow).")]
+        [SerializeField] private Sprite outShadowSprite;
+        [Tooltip("Size of the shadow relative to its icon (1 = the shadow sprite's own size, which is " +
+                 "slightly larger than the icon → it peeks out as a drop shadow).")]
+        [SerializeField] private float shadowScaleMultiplier = 1f;
+        [Tooltip("Local offset of the shadow from its icon (drop direction). The shadow art usually has the " +
+                 "offset baked in, so 0 is fine; nudge if you want more drop.")]
+        [SerializeField] private Vector3 shadowLocalOffset = Vector3.zero;
+        [Tooltip("Point INSIDE the shadow sprite that is anchored to the arrow's centre and scaled around " +
+                 "(0.5,0.5 = the sprite's middle). renderer bounds only know the full quad, not where the dark " +
+                 "pixels are — so if the shadow's dark part sits LOW in its image and grows downward, lower Y " +
+                 "(~0.4–0.45) until it scales symmetrically around the arrow.")]
+        [SerializeField] private Vector2 shadowPivot = new Vector2(0.5f, 0.5f);
 
         // Per-grid indicator tweaks (size multiplier + status/out offsets) live on LevelLoader.scaleOverrides
         // — the SAME per-grid list that tunes board scale — so one place fine-tunes the board + its indicators.
@@ -133,6 +157,8 @@ namespace Sort
             float sizeMul = rowComp * (hasOv && ov.indicatorSizeMultiplier > 0f ? ov.indicatorSizeMultiplier : 1f);
             Vector3 statusExtra = hasOv ? ov.indicatorStatusOffset : Vector3.zero;
             Vector3 outExtra    = hasOv ? ov.indicatorOutOffset : Vector3.zero;
+            // Per-grid indicator spread overrides the global one when set (>0); else use the global value.
+            float spreadX = (hasOv && ov.indicatorSpread > 0f) ? ov.indicatorSpread : indicatorSpreadX;
 
             var level   = LevelLoader.Instance != null ? LevelLoader.Instance.CurrentLevel : null;
             var columns = GameManager.Instance != null ? GameManager.Instance.Columns : null;
@@ -177,6 +203,9 @@ namespace Sort
                     ? transform.InverseTransformPoint(col.transform.position).x
                     : cen.x + (cols <= 1 ? 0f : Mathf.Lerp(-halfW, halfW, (float)c / (cols - 1)) * 0.8f);
 
+                // Spread the indicators out from the board centre (per-grid override, else the global value).
+                colX = cen.x + (colX - cen.x) * spreadX;
+
                 // Top status: the IN sprite is the always-visible FRAME (the slot). The not-done icon
                 // sits INSIDE it while the column is unsolved; on lock ColumnIndicator hides not-done and
                 // shows the tick. Sizes are divided by MainBoard's scale to undo its non-uniform image-fit.
@@ -194,16 +223,18 @@ namespace Sort
                     GameObject notDoneGO = null;
                     if (inSprite != null && notDoneSprite != null)
                     {
-                        notDoneGO = Spawn(notDoneSprite, sPos, rot, new Vector3(notDoneScale / mbx, notDoneScale / mby, 1f), indicatorSortingOrder + 1);
+                        notDoneGO = Spawn(notDoneSprite, sPos, rot, new Vector3(notDoneScale / mbx, notDoneScale / mby, 1f), indicatorSortingOrder + 2);
                         // Not Done uses the SECONDARY radiant (independent of the In frame's Primary).
                         ApplyRadiant(notDoneGO, level.GetThemeColor(UiThemeSlot.Secondary));
+                        AttachShadow(notDoneGO, notDoneShadowSprite);   // shadow sits behind (frame < shadow < arrow)
                     }
 
                     // Inner tick (shown on lock).
                     GameObject tickGO = null;
                     if (tickSprite != null)
                     {
-                        tickGO = Spawn(tickSprite, sPos, rot, new Vector3(tickS / mbx, tickS / mby, 1f), indicatorSortingOrder + 1);
+                        tickGO = Spawn(tickSprite, sPos, rot, new Vector3(tickS / mbx, tickS / mby, 1f), indicatorSortingOrder + 2);
+                        AttachShadow(tickGO, tickShadowSprite);
                         tickGO.SetActive(false);
                     }
 
@@ -215,9 +246,10 @@ namespace Sort
                 if (outSprite != null)
                 {
                     var oPos = new Vector3(colX, outY, liftZ) + outExtra;
-                    var outGO = Spawn(outSprite, oPos, rot, new Vector3(outScale / mbx, outScale / mby, 1f), indicatorSortingOrder);
+                    var outGO = Spawn(outSprite, oPos, rot, new Vector3(outScale / mbx, outScale / mby, 1f), indicatorSortingOrder + 1);
                     // Out arrows share the PRIMARY radiant with the In frames (one synced theme).
                     ApplyRadiant(outGO, level.GetThemeColor(UiThemeSlot.Primary));
+                    AttachShadow(outGO, outShadowSprite);
                 }
             }
         }
@@ -260,6 +292,34 @@ namespace Sort
             {
                 sr.color = g.top;   // fallback: flat multiply tint with the top color
             }
+        }
+
+        // Spawns a shadow sprite as a CHILD of the icon, one sorting order BEHIND it. Being a child, it
+        // follows the icon's show/hide (ColumnIndicator toggles the arrow/tick) and its world scale, so the
+        // shadow stays glued behind the icon. The shadow art is left untinted (it carries its own dark color).
+        void AttachShadow(GameObject icon, Sprite shadowSprite)
+        {
+            if (icon == null || shadowSprite == null) return;
+            var isr = icon.GetComponent<SpriteRenderer>();
+            var go = new GameObject("Shadow");
+            go.transform.SetParent(icon.transform, false);
+            go.transform.localRotation = Quaternion.identity;
+            go.transform.localScale = new Vector3(shadowScaleMultiplier, shadowScaleMultiplier, 1f);
+            var sr = go.AddComponent<SpriteRenderer>();
+            sr.sprite = shadowSprite;
+            sr.sortingOrder = (isr != null ? isr.sortingOrder : indicatorSortingOrder) - 1;
+
+            // Anchor the chosen point of the shadow sprite (Shadow Pivot) onto the arrow's centre, accounting
+            // for the current scale — so raising Shadow Scale Multiplier expands the shadow symmetrically
+            // around THAT point instead of growing from the sprite's quad pivot. Lower Shadow Pivot Y if the
+            // dark pixels sit low in the image.
+            Vector3 target = isr != null ? isr.bounds.center : icon.transform.position;
+            Bounds sb = shadowSprite.bounds;   // local sprite bounds (relative to its pivot)
+            Vector3 anchorLocal = sb.center + new Vector3((shadowPivot.x - 0.5f) * sb.size.x,
+                                                          (shadowPivot.y - 0.5f) * sb.size.y, 0f);
+            go.transform.position = target - go.transform.TransformVector(anchorLocal);
+            go.transform.localPosition += shadowLocalOffset;        // optional manual drop nudge
+            // Not added to `spawned`: it's a child of the icon and is cleared when the icon is destroyed.
         }
 
         GameObject Spawn(Sprite sprite, Vector3 localPos, Quaternion localRot, Vector3 localScale, int order)

@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 namespace Sort
 {
@@ -70,6 +71,13 @@ namespace Sort
         [SerializeField] private float celebrationDelay = 0.05f;
         [Tooltip("How many clicks can be queued while an animation is playing.")]
         [SerializeField] private int maxQueuedClicks = 2;
+
+        [Tooltip("Pause after the player completes the LAST column (wins) before the Win panel + rewards " +
+                 "appear — lets the final column's celebration play out so the win feels earned. Read by " +
+                 "GameManager.CheckWin. 0 = instant.")]
+        [SerializeField] private float winCompleteDelay = 0.5f;
+        /// <summary>Win-reveal pause (seconds) used by GameManager — kept here with the other pacing knobs.</summary>
+        public float WinCompleteDelay => winCompleteDelay;
 
         [Header("Celebration animation (column complete)")]
         [Tooltip("Total duration of the hop+flip per piece when a column locks. Tuned to match the " +
@@ -260,6 +268,41 @@ namespace Sort
             UpdateRainbowSinkOpportunities();
         }
 
+        // Tap input via an explicit camera raycast (NOT Piece.OnMouseDown). OnMouseDown's built-in picking
+        // misfires when the camera is LETTERBOXED (AspectRatioEnforcer shrinks cam.rect) — that's why taps
+        // worked on phones matching the design aspect but NOT on phones with a different aspect ratio.
+        // Camera.ScreenPointToRay respects the camera's viewport rect, so this registers on EVERY device.
+        // Uses the new Input System: Pointer.current unifies mouse (editor/desktop) and touchscreen (device),
+        // so the first touch's press drives the same path as a left-click — no legacy Input.* (the project
+        // is set to "Input System Package (New)" only).
+        void Update()
+        {
+            var pointer = Pointer.current;
+            if (pointer == null) return;
+            if (!pointer.press.wasPressedThisFrame) return;
+            if (IsPointerOverUI()) return;                       // don't tap pieces through buttons / panels
+            var cam = Camera.main;
+            if (cam == null) return;
+            Ray ray = cam.ScreenPointToRay(pointer.position.ReadValue());
+            if (Physics.Raycast(ray, out RaycastHit hit, Mathf.Infinity))
+            {
+                var piece = hit.collider != null ? hit.collider.GetComponentInParent<Piece>() : null;
+                if (piece != null && piece.transform.parent != null) OnPieceTapped(piece);
+            }
+        }
+
+        static bool IsPointerOverUI()
+        {
+            var es = UnityEngine.EventSystems.EventSystem.current;
+            if (es == null) return false;
+            // On touch, query by the active finger's pointerId (touchId); fall back to the no-arg overload
+            // (mouse / current pointer) on desktop.
+            var ts = Touchscreen.current;
+            if (ts != null && ts.primaryTouch.press.isPressed)
+                return es.IsPointerOverGameObject(ts.primaryTouch.touchId.ReadValue());
+            return es.IsPointerOverGameObject();
+        }
+
         /// <summary>
         /// Central dispatch for piece taps. Routes through the current skill mode when one is
         /// active, otherwise falls back to the normal column-drop flow.
@@ -293,7 +336,7 @@ namespace Sort
             // Frozen columns block ALL interactions (the gating mechanic). Colliders are also
             // disabled in Column.Freeze, but check here defensively in case the click came from
             // a code path that bypasses the collider raycast (queued click, undo replay, etc.).
-            if (col.IsFrozen) { RejectFeedback(); return; }
+            if (col.IsBlocked) { RejectFeedback(); return; }   // Frozen OR Threaded → blocked, play reject
 
             // Click queue: if we're mid-animation, hold this click for after.
             // (When the queued click fires, heldPiece will already have been refreshed
@@ -373,19 +416,22 @@ namespace Sort
                 {
                     var p = col.transform.GetChild(i).GetComponent<Piece>();
                     if (p == null || !p.IsTied) continue;
-                    var partner = p.TiedPartner;
-                    if (partner == null || partner.transform.parent == null) continue;
-                    var partnerCol = partner.transform.parent.GetComponent<Column>();
-                    if (partnerCol == null || visited.Contains(partnerCol)) continue;
-                    if (partnerCol.IsLocked) continue;
-                    // Frozen partner columns are excluded from the tied chain — clicking the
-                    // non-frozen side won't drag the frozen column's pieces along (they're locked
-                    // behind the unfreeze gate). Tie visual may visually stretch in this edge case;
-                    // designer should avoid configuring ties that span frozen columns when possible.
-                    if (partnerCol.IsFrozen) continue;
-                    visited.Add(partnerCol);
-                    chain.Add(partnerCol);
-                    queue.Enqueue(partnerCol);
+                    var partners = p.TiedPartners;   // may be 1 (pair) or more (3+ column lock)
+                    for (int k = 0; k < partners.Count; k++)
+                    {
+                        var partner = partners[k];
+                        if (partner == null || partner.transform.parent == null) continue;
+                        var partnerCol = partner.transform.parent.GetComponent<Column>();
+                        if (partnerCol == null || visited.Contains(partnerCol)) continue;
+                        if (partnerCol.IsLocked) continue;
+                        // Frozen partner columns are excluded from the tied chain — clicking the
+                        // non-frozen side won't drag the frozen column's pieces along (they're locked
+                        // behind the unfreeze gate). Designer should avoid bonds that span frozen columns.
+                        if (partnerCol.IsBlocked) continue;
+                        visited.Add(partnerCol);
+                        chain.Add(partnerCol);
+                        queue.Enqueue(partnerCol);
+                    }
                 }
             }
 
@@ -545,6 +591,10 @@ namespace Sort
             // Wait for the slowest coroutine to finish (typically heldToTop @ 0.25s).
             foreach (var co in animations) yield return co;
 
+            // Little scale "pop" on the piece that just landed at the TOP of the column — same hop+zoom feel
+            // as the piece that pops into the hand. Fire-and-forget so it doesn't delay the move resolving.
+            if (toInsert != null) StartCoroutine(toInsert.AnimateLandBounce(landBounceDuration, landBounceOvershoot));
+
             // --- assign held ref (already reparented above) ------------------
             if (ejected != null) heldPiece = ejected;
 
@@ -699,6 +749,9 @@ namespace Sort
 
             foreach (var co in animations) yield return co;
 
+            // Scale "pop" on the piece that just landed at the top (matches the non-tie drop + the hand pop).
+            if (toInsert != null) StartCoroutine(toInsert.AnimateLandBounce(landBounceDuration, landBounceOvershoot));
+
             // --- Bind ejected as new held ---
             if (ejected != null) heldPiece = ejected;
 
@@ -716,32 +769,51 @@ namespace Sort
             void TryQueueBreak(Piece p)
             {
                 if (p == null || !p.IsTied || seenInBreak.Contains(p)) return;
-                var partner = p.TiedPartner;
-                if (partner == null) return;
-                brokenTies.Add((p, partner));
                 seenInBreak.Add(p);
-                seenInBreak.Add(partner);
+                var partners = p.TiedPartners;   // break every link this bottomed-out piece has
+                for (int k = 0; k < partners.Count; k++)
+                    if (partners[k] != null) brokenTies.Add((p, partners[k]));
             }
             foreach (var p in bottomsBefore) TryQueueBreak(p);
             foreach (var p in bottomsAfter) TryQueueBreak(p);
 
-            // --- Fire crack+fade on each broken tie's visual, clear the refs ---
+            // --- Fire the break effect on each broken bond's visual, clear the refs ---
             if (brokenTies.Count > 0)
             {
                 SfxManager.Play(SfxId.TieBreak);
-                var allTies = FindObjectsByType<TieVisual>(FindObjectsInactive.Exclude);
+                // Both TieVisual and LockVisual implement IBondVisual — gather both so a Lock breaks
+                // (split-apart) exactly where a Tie would (crack+fade). FindObjectsByType needs a concrete
+                // type, so query each then treat via the interface.
+                var bonds = new List<IBondVisual>();
+                bonds.AddRange(FindObjectsByType<TieVisual>(FindObjectsInactive.Exclude));
+                bonds.AddRange(FindObjectsByType<LockVisual>(FindObjectsInactive.Exclude));
+                var brokenVisuals = new HashSet<IBondVisual>();
                 foreach (var (a, b) in brokenTies)
                 {
-                    foreach (var tv in allTies)
+                    IBondVisual matched = null;
+                    foreach (var bv in bonds)
+                        if (bv.Covers(a) || bv.Covers(b)) { matched = bv; break; }
+
+                    if (matched != null)
                     {
-                        if ((tv.PieceA == a && tv.PieceB == b) || (tv.PieceA == b && tv.PieceB == a))
+                        // Break the whole bond once: release every tied piece it spans (a 3+ column lock
+                        // dissolves entirely), then play its single break effect.
+                        if (brokenVisuals.Add(matched))
                         {
-                            StartCoroutine(tv.CrackAndFade(tieBreakFadeDuration));
-                            break;
+                            var grp = matched.Pieces;
+                            for (int k = 0; k < grp.Count; k++) if (grp[k] != null) grp[k].ClearTiedPartners();
+                            StartCoroutine(matched.PlayBreak(tieBreakFadeDuration));
                         }
                     }
-                    a.SetTiedPartner(null);
-                    b.SetTiedPartner(null);
+                    else
+                    {
+#if UNITY_EDITOR
+                        Debug.LogWarning($"[Bond] break detected for {a?.name}↔{b?.name} but no matching " +
+                                         $"TieVisual/LockVisual found among {bonds.Count} in scene.");
+#endif
+                        if (a != null) a.RemoveTiedPartner(b);
+                        if (b != null) b.RemoveTiedPartner(a);
+                    }
                 }
             }
 
@@ -861,7 +933,7 @@ namespace Sort
             if (col == null || col.IsLocked) return;
             // Frozen columns block Switch — even though the piece's collider is disabled while
             // frozen, this is a defensive check for any code path that bypasses the raycast.
-            if (col.IsFrozen) return;
+            if (col.IsBlocked) return;
             // Hidden Questionmark has no known color — swapping it leaves the game state inscrutable.
             if (piece.IsQuestionmark && !piece.IsRevealed) return;
             // Tied pieces cannot be Switch'd — design rule. Swapping one half of a tie across columns
@@ -995,7 +1067,7 @@ namespace Sort
             if (col == null || col.IsLocked) return;
             // Frozen columns block Magnet — both as the source piece's column AND as a gather target.
             // Defensive check on top of the Column.Freeze collider disable.
-            if (col.IsFrozen) return;
+            if (col.IsBlocked) return;
             if (piece.IsRainbow) return;                       // No color to gather.
             if (piece.IsQuestionmark && !piece.IsRevealed) return;
             // Tied columns are OFF-LIMITS to Magnet (same as frozen): gathering INTO or pulling FROM a
@@ -1059,7 +1131,7 @@ namespace Sort
             {
                 var c = allCols[ci];
                 if (c == null || c.IsLocked) continue;
-                if (c.IsFrozen) continue;
+                if (c.IsBlocked) continue;
                 if (c.HasActiveTie()) continue;   // tied columns are off-limits — never gather from / displace into a tie
                 int slot = 0;
                 for (int i = 0; i < c.transform.childCount; i++)
@@ -1420,7 +1492,7 @@ namespace Sort
             {
                 var c = cols[i];
                 if (c == null || c.IsLocked) continue;
-                if (c.IsFrozen) continue;   // Frozen columns are inert — no auto-sink, no shifts.
+                if (c.IsBlocked) continue;   // Frozen columns are inert — no auto-sink, no shifts.
                 var targets = c.GetSinkTargets(heldColor);
                 if (targets.Count > 0)
                 {
@@ -1447,7 +1519,7 @@ namespace Sort
             {
                 var c = cols[i];
                 if (c == null || c.IsLocked) continue;
-                if (c.IsFrozen) continue;   // Frozen columns are inert — no auto-sink, no shifts.
+                if (c.IsBlocked) continue;   // Frozen columns are inert — no auto-sink, no shifts.
                 var targets = c.GetSinkTargets(heldColor);
                 if (targets.Count > 0)
                     sinkAnims.Add(StartCoroutine(AnimateSink(c, targets)));

@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace Sort
@@ -16,7 +17,7 @@ namespace Sort
     /// when either bound piece is destroyed. Crack animation + fade-out (when the tie breaks
     /// at the bottom row) are added in Phase C.
     /// </summary>
-    public class TieVisual : MonoBehaviour
+    public class TieVisual : MonoBehaviour, IBondVisual
     {
         [Tooltip("Upper half of the X — typically a Quad child with material mat_tie_up.mat. " +
                  "On tie break (Phase C), this swaps to tieUpCrackMat and fades alpha 1→0 over " +
@@ -76,6 +77,15 @@ namespace Sort
         public Piece PieceA => pieceA;
         public Piece PieceB => pieceB;
 
+        // --- IBondVisual (a tie always spans exactly its two pieces) ---
+        public IReadOnlyList<Piece> Pieces => new[] { pieceA, pieceB };
+        public bool Covers(Piece p) => p != null && (p == pieceA || p == pieceB);
+        public void Bind(IReadOnlyList<Piece> pieces)
+        {
+            Bind(pieces != null && pieces.Count > 0 ? pieces[0] : null,
+                 pieces != null && pieces.Count > 1 ? pieces[1] : null);
+        }
+
         /// <summary>
         /// Binds this visual to the two tied pieces. Must be called by LevelLoader right after
         /// Instantiate so LateUpdate has valid references on the first frame. Both pieces' own
@@ -91,6 +101,13 @@ namespace Sort
             UpdateTransform();
         }
 
+        // Cached so we only re-run the (LookRotation + 2× collider read + scale) UpdateTransform while
+        // something actually moved. Pieces are static except during drops/shifts and the camera is fixed
+        // during play, so most frames early-out here doing almost nothing.
+        Vector3 lastPosA, lastPosB, lastCamPos;
+        Quaternion lastCamRot;
+        bool hasLastTransform;
+
         void LateUpdate()
         {
             // Once frozen (break in progress), don't follow pieces — they're separating dramatically.
@@ -101,7 +118,16 @@ namespace Sort
                 Destroy(gameObject);
                 return;
             }
+
+            Vector3 pa = pieceA.transform.position, pb = pieceB.transform.position;
+            Camera cam = Camera.main;
+            Vector3 cp = cam != null ? cam.transform.position : Vector3.zero;
+            Quaternion cr = cam != null ? cam.transform.rotation : Quaternion.identity;
+            if (hasLastTransform && pa == lastPosA && pb == lastPosB && cp == lastCamPos && cr == lastCamRot)
+                return;   // pieces + camera unchanged → nothing to recompute
+
             UpdateTransform();
+            lastPosA = pa; lastPosB = pb; lastCamPos = cp; lastCamRot = cr; hasLastTransform = true;
         }
 
         /// <summary>
@@ -112,6 +138,9 @@ namespace Sort
         /// Caller is responsible for clearing <see cref="Piece.SetTiedPartner"/> on both bound
         /// pieces — this method only handles the visual side.
         /// </summary>
+        /// <summary><see cref="IBondVisual"/> entry point — the tie's break IS its crack+fade.</summary>
+        public IEnumerator PlayBreak(float duration) => CrackAndFade(duration);
+
         public IEnumerator CrackAndFade(float duration)
         {
             frozen = true;

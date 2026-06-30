@@ -17,17 +17,18 @@ namespace Sort
     {
         public static SkillManager Instance { get; private set; }
 
-        [Header("Rewind (Skill 1 — always unlocked)")]
+        [Header("Rewind (Skill 1 — unlocks at LevelDatabase.rewindUnlockLevel)")]
         [Tooltip("UI Button used as the Rewind trigger.")]
         [SerializeField] private Button rewindButton;
-        [Tooltip("Optional lock overlay GameObject (e.g. an Image with Lock.png) on the Rewind button. Stays hidden since Rewind is always unlocked.")]
+        [Tooltip("Lock overlay GameObject (e.g. an Image with Lock.png) on the Rewind button. Shown while Rewind is locked.")]
         [SerializeField] private GameObject rewindLockOverlay;
         [Tooltip("Root of the UNLOCKED-state visuals — e.g. BoosterStroke (which parents Booster → UsageCount). " +
-                 "Shown when usable, hidden when the lock overlay is shown; disabling it cascades to its children, " +
-                 "so ONE toggle hides the whole coin. Rewind is always unlocked, so this stays on.")]
+                 "Shown when unlocked, hidden (with the lock overlay) while locked.")]
         [SerializeField] private GameObject rewindUnlockedVisuals;
+        [Tooltip("Text label that shows the unlock-level number while Rewind is locked (e.g. 'Lvl 7'). Hidden once unlocked.")]
+        [SerializeField] private TMP_Text rewindUnlockedLevelText;
 
-        [Header("Switch (Skill 2 — unlocks per LevelData flag)")]
+        [Header("Switch (Skill 2 — unlocks at LevelDatabase.switchUnlockLevel)")]
         [SerializeField] private Button switchButton;
         [SerializeField] private GameObject switchLockOverlay;
         [Tooltip("Root of the UNLOCKED-state visuals (e.g. BoosterStroke → Booster → UsageCount). Shown only " +
@@ -39,7 +40,7 @@ namespace Sort
                  "When 0, tapping the button opens BuyUsesPanel instead of entering Switch mode.")]
         [SerializeField] private TMP_Text switchUsesBadge;
 
-        [Header("Magnet (Skill 3 — unlocks per LevelData flag)")]
+        [Header("Magnet (Skill 3 — unlocks at LevelDatabase.magnetUnlockLevel)")]
         [SerializeField] private Button magnetButton;
         [SerializeField] private GameObject magnetLockOverlay;
         [Tooltip("Root of the UNLOCKED-state visuals (e.g. BoosterStroke → Booster → UsageCount). Shown only " +
@@ -103,8 +104,7 @@ namespace Sort
             // target instead of adding each launch, so repeated launches don't grow the stockpile unbounded.
             if (devUnlockAllForTesting)
             {
-                SkillProgress.Unlock(SkillType.Switch);
-                SkillProgress.Unlock(SkillType.Magnet);
+                SkillProgress.DevUnlockAll = true;
                 if (PlayerEconomy.SwitchUses < 99) PlayerEconomy.AddSwitchUses(99 - PlayerEconomy.SwitchUses);
                 if (PlayerEconomy.MagnetUses < 99) PlayerEconomy.AddMagnetUses(99 - PlayerEconomy.MagnetUses);
                 if (PlayerEconomy.Coins < 99999) PlayerEconomy.AddCoins(99999 - PlayerEconomy.Coins);
@@ -160,7 +160,7 @@ namespace Sort
             }
         }
 
-        public bool CanUseRewind => CanUseFreeRewind || CanPurchaseRewind;
+        public bool CanUseRewind => SkillProgress.IsUnlocked(SkillType.Rewind) && (CanUseFreeRewind || CanPurchaseRewind);
 
         public void UseRewind()
         {
@@ -312,11 +312,13 @@ namespace Sort
 
         void RefreshButtons()
         {
-            // Rewind — always unlocked.
-            bool rewindTarget = CanUseRewind;
+            // Rewind — now gated like Switch/Magnet (unlocks at LevelDatabase.rewindUnlockLevel).
+            bool rewindUnlocked = SkillProgress.IsUnlocked(SkillType.Rewind);
+            bool rewindTarget = rewindUnlocked && CanUseRewind;
             if (rewindButton != null) rewindButton.interactable = rewindTarget;
-            if (rewindLockOverlay != null) rewindLockOverlay.SetActive(false);
-            if (rewindUnlockedVisuals != null) rewindUnlockedVisuals.SetActive(true);
+            if (rewindLockOverlay != null) rewindLockOverlay.SetActive(!rewindUnlocked);
+            if (rewindUnlockedVisuals != null) rewindUnlockedVisuals.SetActive(rewindUnlocked);
+            UpdateUnlockedLevelLabel(rewindUnlockedLevelText, rewindUnlocked, SkillType.Rewind);
 
             // Switch — locked label OR stock badge.
             bool switchUnlocked = SkillProgress.IsUnlocked(SkillType.Switch);
@@ -378,7 +380,7 @@ namespace Sort
         [ContextMenu("Dev: Unlock Switch + give 5 uses")]
         void DevUnlockSwitch()
         {
-            SkillProgress.Unlock(SkillType.Switch);
+            SkillProgress.DevUnlockAll = true;
             PlayerEconomy.AddSwitchUses(5);
             RefreshButtons();
             Debug.Log("[DEV] Switch unlocked, +5 uses. Total SwitchUses = " + PlayerEconomy.SwitchUses);
@@ -387,7 +389,7 @@ namespace Sort
         [ContextMenu("Dev: Unlock Magnet + give 5 uses")]
         void DevUnlockMagnet()
         {
-            SkillProgress.Unlock(SkillType.Magnet);
+            SkillProgress.DevUnlockAll = true;
             PlayerEconomy.AddMagnetUses(5);
             RefreshButtons();
             Debug.Log("[DEV] Magnet unlocked, +5 uses. Total MagnetUses = " + PlayerEconomy.MagnetUses);

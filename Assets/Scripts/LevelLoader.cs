@@ -33,15 +33,44 @@ namespace Sort
                  "movement (Phase B) but won't render.")]
         [SerializeField] private GameObject tieVisualPrefab;
 
+        [Tooltip("Prefab spawned for ties whose BondStyle = Lock. Must have a LockVisual component on the " +
+                 "root (the bar with two end caps + middle bar spanning the two columns). Leave null to fall " +
+                 "back to tieVisualPrefab for Lock-style bonds too.")]
+        [SerializeField] private GameObject lockVisualPrefab;
+
+        [Tooltip("Separate prefab for Lock bonds spanning 3+ columns (author it as start + ONE mid template + " +
+                 "end; the mid is tiled per interior column). Used when columnSpan >= 3; falls back to " +
+                 "lockVisualPrefab if unassigned. Keeps the 2-column prefab's custom cap layout from interfering.")]
+        [SerializeField] private GameObject lockVisualSpanPrefab;
+
+        [Tooltip("UNIFORM size multiplier for the spawned LockVisual — multiplies the prefab's authored " +
+                 "localScale, preserving its proportions (keep X=Y=Z for an even resize; don't stretch one " +
+                 "axis). This is the lock's size knob. Tie visuals are unaffected.")]
+        [SerializeField] private Vector3 lockVisualScale = Vector3.one;
+
+        [Tooltip("Per-spawn position nudge for every LockVisual, in the COLUMN frame (Y = up along the board " +
+                 "surface — raise it to shift the lock up between the columns). Added on top of the prefab's " +
+                 "own Position Offset. Tie visuals are unaffected.")]
+        [SerializeField] private Vector3 lockVisualOffset = Vector3.zero;
+
         [Tooltip("Prefab spawned for each LevelData.frozenColumns entry. Must have a FrozenOverlay " +
                  "component on the root with a TMP_Text child for the remaining-count display and " +
                  "an optional MeshRenderer Quad for the placeholder fade tint. Leave null to skip the " +
                  "visual — the gameplay state (frozen / interaction blocks) still applies.")]
         [SerializeField] private GameObject frozenOverlayPrefab;
 
+        [Tooltip("Prefab spawned over each LevelData.threadColumns entry — must have a ThreadColumnOverlay " +
+                 "component (covers the column with the Thread mesh, tinted to the required color, and plays " +
+                 "the unlock animation). Leave null to disable the Thread visual (gameplay block still applies).")]
+        [SerializeField] private GameObject threadOverlayPrefab;
+
         [Header("Scene refs")]
         [SerializeField] private Board board;
         [SerializeField] private PlayerHand playerHand;
+        [Tooltip("Match the HandAnchor's ROTATION to a board column so the held piece tilts EXACTLY like the " +
+                 "pieces on the board (same facing under the camera angle). Turn off if you intentionally want " +
+                 "the held piece at a different angle.")]
+        [SerializeField] private bool matchHandRotationToBoard = true;
 
         [Header("Default")]
         [Tooltip("Used when no level is selected (e.g. opening the Game scene directly in editor).")]
@@ -252,6 +281,9 @@ namespace Sort
             // Initialize frozen columns (Break Wall Stack). Calls Column.Freeze on each configured
             // column (disables colliders → blocks interactions) and spawns the FrozenOverlay visual.
             InitializeFrozenColumns(data, spawnedColumns);
+
+            // Initialize Thread columns (independent mechanic): cover + block each, spawn the Thread overlay.
+            InitializeThreadColumns(data, spawnedColumns);
 
             // Spawn the held piece under the hand anchor.
             var heldGO = Instantiate(piecePrefab, playerHand.HandAnchor);
@@ -482,40 +514,70 @@ namespace Sort
                 if (t == null) continue;
                 // Validation already runs in LevelData.Validate (logged via OnValidate); guard at
                 // runtime too so a stale/invalid asset doesn't crash the level build.
-                if (t.columnA < 0 || t.columnA >= cols.Count - 1)
+                int span = Mathf.Max(2, t.columnSpan);
+                if (t.columnA < 0 || t.columnA + span - 1 >= cols.Count)
                 {
-                    Debug.LogWarning($"[LevelLoader] Tie [{i}] columnA={t.columnA} out of range for level '{data.name}' — skipped.", this);
-                    continue;
-                }
-                var colA = cols[t.columnA];
-                var colB = cols[t.columnA + 1];
-                if (colA == null || colB == null) continue;
-
-                var pieceA = GetPieceAtRow(colA, t.row);
-                var pieceB = GetPieceAtRow(colB, t.row);
-                if (pieceA == null || pieceB == null)
-                {
-                    Debug.LogWarning($"[LevelLoader] Tie [{i}] row={t.row} resolves to a missing piece in level '{data.name}' — skipped.", this);
+                    Debug.LogWarning($"[LevelLoader] Bond [{i}] columnA={t.columnA} span={span} out of range for level '{data.name}' — skipped.", this);
                     continue;
                 }
 
-                // Cross-link tied partners FIRST so Phase B logic can see the binding even if the
-                // visual prefab is missing.
-                pieceA.SetTiedPartner(pieceB);
-                pieceB.SetTiedPartner(pieceA);
-
-                if (tieVisualPrefab != null)
+                // Resolve the piece at (column, row) for every column in the span (left → right).
+                var bondPieces = new System.Collections.Generic.List<Piece>(span);
+                bool missing = false;
+                for (int c = 0; c < span; c++)
                 {
-                    var tieGO = Instantiate(tieVisualPrefab, board.transform);
-                    var tieVis = tieGO.GetComponent<TieVisual>();
-                    if (tieVis != null)
+                    var col = cols[t.columnA + c];
+                    var pc = col != null ? GetPieceAtRow(col, t.row) : null;
+                    if (pc == null) { missing = true; break; }
+                    bondPieces.Add(pc);
+                }
+                if (missing || bondPieces.Count < 2)
+                {
+                    Debug.LogWarning($"[LevelLoader] Bond [{i}] row={t.row} resolves to a missing piece in level '{data.name}' — skipped.", this);
+                    continue;
+                }
+
+                // Cross-link ADJACENT pieces both ways so the chain BFS links the whole group. For a 3+ span
+                // the middle pieces end up tied to BOTH neighbours (needs Piece's multi-partner list).
+                for (int c = 0; c < bondPieces.Count - 1; c++)
+                {
+                    bondPieces[c].AddTiedPartner(bondPieces[c + 1]);
+                    bondPieces[c + 1].AddTiedPartner(bondPieces[c]);
+                }
+
+                // Lock-style bonds use lockVisualPrefab (falling back to tieVisualPrefab if unassigned);
+                // everything else uses the tie visual. Both implement IBondVisual, so the shift/break
+                // mechanic treats them identically. ONE visual spans the whole group.
+                // Pick the lock prefab: a 3+ span uses the dedicated span prefab (mid tiled per column),
+                // falling back to the 2-column prefab if no span prefab is assigned.
+                GameObject lockPrefab = (span >= 3 && lockVisualSpanPrefab != null) ? lockVisualSpanPrefab : lockVisualPrefab;
+                if (t.bondStyle == BondStyle.Lock && lockPrefab == null)
+                    Debug.LogWarning($"[LevelLoader] Bond [{i}] is Bond Style = Lock but no lock prefab is assigned " +
+                                     $"(Lock Visual Prefab / Lock Visual Span Prefab) — falling back to the Tie (X) visual.", this);
+                bool wantLock = t.bondStyle == BondStyle.Lock && lockPrefab != null;
+                var visualPrefab = wantLock ? lockPrefab : tieVisualPrefab;
+                if (visualPrefab != null)
+                {
+                    var bondGO = Instantiate(visualPrefab, board.transform);
+                    // Uniform size for the lock (preserves prefab proportions). LockVisual never touches its
+                    // own root scale, so this sticks.
+                    if (wantLock && lockVisualScale != Vector3.one)
+                        bondGO.transform.localScale = Vector3.Scale(bondGO.transform.localScale, lockVisualScale);
+                    if (wantLock)
                     {
-                        tieVis.Bind(pieceA, pieceB);
+                        var lv = bondGO.GetComponent<LockVisual>();
+                        if (lv != null) lv.SetExtraOffset(lockVisualOffset);
+                    }
+                    var bondVis = bondGO.GetComponent<IBondVisual>();
+                    if (bondVis != null)
+                    {
+                        bondVis.Bind(bondPieces);
                     }
                     else
                     {
-                        Debug.LogWarning($"[LevelLoader] tieVisualPrefab is missing a TieVisual component — tie [{i}] won't render.", this);
-                        Destroy(tieGO);
+                        Debug.LogWarning($"[LevelLoader] {(wantLock ? "lockVisualPrefab" : "tieVisualPrefab")} is " +
+                                         $"missing an IBondVisual (TieVisual / LockVisual) component — bond [{i}] won't render.", this);
+                        Destroy(bondGO);
                     }
                 }
             }
@@ -548,8 +610,15 @@ namespace Sort
                     if (col == null) continue;
 
                     // Frozen = COUNT mode: breaks when X (unlockThreshold) ANY columns are completed.
-                    col.Freeze(cfg.unlockThreshold);
-                    SpawnFrozenOverlay(col, cfg.unlockThreshold);
+                    // Column.Freeze ignores threshold <= 0 (would leave the column NOT frozen but still
+                    // showing the overlay). Clamp to >=1 and warn so a stale 0 doesn't silently break it.
+                    int threshold = Mathf.Max(1, cfg.unlockThreshold);
+                    if (cfg.unlockThreshold < 1)
+                        Debug.LogWarning($"[LevelLoader] Frozen column {cfg.columnIndex} in '{data.name}' has " +
+                                         $"unlockThreshold {cfg.unlockThreshold} (<1) — clamped to 1 so it actually " +
+                                         $"freezes. Set X on this level's frozenColumns entry.", this);
+                    col.Freeze(threshold);
+                    SpawnFrozenOverlay(col, threshold);
                 }
             }
 
@@ -574,30 +643,76 @@ namespace Sort
                     }
                     else if (cc.lockColorStack)
                     {
-                        col.Freeze(cc.lockColorUnlockThreshold, true, cc.requiredColor);
-                        SpawnFrozenOverlay(col, cc.lockColorUnlockThreshold);
+                        int lockThreshold = Mathf.Max(1, cc.lockColorUnlockThreshold);
+                        if (cc.lockColorUnlockThreshold < 1)
+                            Debug.LogWarning($"[LevelLoader] Lock-Color column {i} in '{data.name}' has " +
+                                             $"threshold {cc.lockColorUnlockThreshold} (<1) — clamped to 1.", this);
+                        col.Freeze(lockThreshold, true, cc.requiredColor);
+                        SpawnFrozenOverlay(col, lockThreshold);
                     }
                 }
             }
         }
 
         /// <summary>
-        /// Instantiates the FrozenOverlay prefab parented to <paramref name="col"/>, positions/rotates it
-        /// over the column, and shows the initial remaining count. No-op if no prefab assigned.
+        /// Initializes Thread columns (independent mechanic): covers + blocks each configured column and
+        /// spawns its ThreadColumnOverlay (tinted to the required color). GameManager unlocks them when a
+        /// matching-color column completes.
         /// </summary>
-        FrozenOverlay SpawnFrozenOverlay(Column col, int threshold)
+        void InitializeThreadColumns(LevelData data, System.Collections.Generic.List<Column> cols)
+        {
+            if (data.threadColumns == null) return;
+            for (int i = 0; i < data.threadColumns.Length; i++)
+            {
+                var cfg = data.threadColumns[i];
+                if (cfg == null) continue;
+                if (cfg.columnIndex < 0 || cfg.columnIndex >= cols.Count)
+                {
+                    Debug.LogWarning($"[LevelLoader] ThreadColumn [{i}] columnIndex={cfg.columnIndex} out of range " +
+                                     $"for level '{data.name}' (has {cols.Count} cols) — skipped.", this);
+                    continue;
+                }
+                if (string.IsNullOrEmpty(cfg.requiredColor))
+                {
+                    Debug.LogWarning($"[LevelLoader] ThreadColumn [{i}] has no Required Color — skipped.", this);
+                    continue;
+                }
+                var col = cols[cfg.columnIndex];
+                if (col == null) continue;
+
+                col.ApplyThread(cfg.requiredColor);   // cover + block until a matching-color column completes
+
+                if (threadOverlayPrefab != null)
+                {
+                    var go = Instantiate(threadOverlayPrefab, col.transform);
+                    go.transform.localPosition = Vector3.zero;
+                    var overlay = go.GetComponent<ThreadColumnOverlay>();
+                    if (overlay != null) overlay.AttachToColumn(col);
+                    else { Debug.LogWarning($"[LevelLoader] threadOverlayPrefab missing a ThreadColumnOverlay — thread [{i}] won't render.", this); Destroy(go); }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Instantiates the frozen-overlay prefab parented to <paramref name="col"/>, positions/rotates it
+        /// over the column, and shows the initial remaining count. The prefab may carry EITHER a 2D
+        /// <see cref="FrozenOverlay"/> or a 3D <see cref="FrozenColumnIce"/> — both implement
+        /// <see cref="IFrozenOverlay"/>. No-op if no prefab assigned.
+        /// </summary>
+        IFrozenOverlay SpawnFrozenOverlay(Column col, int threshold)
         {
             if (frozenOverlayPrefab == null) return null;
             var overlayGO = Instantiate(frozenOverlayPrefab, col.transform);
-            var overlay = overlayGO.GetComponent<FrozenOverlay>();
+            var overlay = overlayGO.GetComponent<IFrozenOverlay>();
             if (overlay == null)
             {
-                Debug.LogWarning($"[LevelLoader] frozenOverlayPrefab is missing a FrozenOverlay component " +
-                                 $"— overlay for '{col.name}' won't update its remaining count.", this);
+                Debug.LogWarning($"[LevelLoader] frozenOverlayPrefab is missing a FrozenOverlay / " +
+                                 $"FrozenColumnIce component — overlay for '{col.name}' won't update its " +
+                                 $"remaining count.", this);
                 return null;
             }
-            // AttachToColumn handles position (world centroid of pieces) AND rotation (lies flat over
-            // the column). Robust to board / column rotation — no manual local-space math here.
+            // AttachToColumn handles position + orientation over the column (each implementation does its
+            // own thing — flat decal for 2D, segmented mesh stack for 3D).
             overlay.AttachToColumn(col);
             overlay.SetRemaining(threshold);
             return overlay;
@@ -642,24 +757,35 @@ namespace Sort
 
         /// <summary>
         /// Pushes the registry entry's <see cref="PieceGenEntry.pieceScale"/> onto the freshly-spawned
-        /// piece as its baseline. No-op when the registry has no entry for this prefab, or when the
-        /// entry's pieceScale is zero (designer's signal to "use the prefab's authored localScale instead").
+        /// piece as its baseline, plus a per-prefab DEPTH (thickness) multiplier so the piece's 3D edge is
+        /// easier to see. When pieceScale is zero (use the prefab's authored scale) only the depth multiplier
+        /// applies. No-op when there's no entry, or nothing to change.
         /// </summary>
         void ApplyRegistryPieceScale(Piece piece, GameObject piecePrefab)
         {
             if (piece == null || registry == null) return;
             if (!registry.TryGetEntry(piecePrefab, out var entry)) return;
-            if (entry.pieceScale.sqrMagnitude < 1e-6f) return; // Zero scale → keep prefab's authored.
+
+            float depthMul = entry.pieceDepthMultiplier > 0f ? entry.pieceDepthMultiplier : 1f;
+            bool useRegistryScale = entry.pieceScale.sqrMagnitude >= 1e-6f;
+            // Nothing to do: keep the prefab's authored scale untouched.
+            if (!useRegistryScale && Mathf.Approximately(depthMul, 1f)) return;
 
             // Per-grid piece-scale override (independent of board scale) from scaleOverrides.
             float pieceMul = 1f;
-            if (CurrentLevel != null)
+            if (CurrentLevel != null && useRegistryScale)
             {
                 GetGrid(CurrentLevel, out int gc, out int gr);
                 if (TryGetGridOverride(gc, gr, out var gov) && gov.pieceScaleMultiplier > 0f)
                     pieceMul = gov.pieceScaleMultiplier;
             }
-            piece.SetBaselineScale(entry.pieceScale * pieceMul);
+
+            // Start from the registry scale, or the PREFAB's authored localScale when pieceScale is zero
+            // (read from the prefab, not the live instance, so re-applies don't compound the depth), then
+            // fatten the chosen depth axis so the thickness shows.
+            Vector3 s = useRegistryScale ? entry.pieceScale * pieceMul : piecePrefab.transform.localScale;
+            s[(int)entry.pieceDepthAxis] *= depthMul;
+            piece.SetBaselineScale(s);
         }
 
         /// <summary>Reads a level's grid size: cols = number of columns, rows = the tallest column.</summary>
@@ -755,6 +881,10 @@ namespace Sort
                 var refCol = board.GetComponentInChildren<Column>(true);
                 if (refCol != null)
                 {
+                    // Match the hand's WORLD rotation to a column so the held piece (RestRotation relative to
+                    // HandAnchor) faces exactly like the board pieces (RestRotation relative to Column).
+                    if (matchHandRotationToBoard) ha.rotation = refCol.transform.rotation;
+
                     Vector3 targetWorld = refCol.transform.lossyScale * handAnchorAdjust;
                     Vector3 parentLossy = ha.parent != null ? ha.parent.lossyScale : Vector3.one;
                     ha.localScale = new Vector3(
@@ -927,6 +1057,11 @@ namespace Sort
 
         [Tooltip("INDICATOR: extra MainBoard-local nudge for the BOTTOM out arrow on this grid.")]
         public Vector3 indicatorOutOffset;
+
+        [Tooltip("INDICATOR: horizontal SPREAD of the indicators from the board centre for this grid " +
+                 "(1 = directly over each column, >1 = wider apart, <1 = closer). 0 = use MainBoardBuilder's " +
+                 "global Indicator Spread X. Use to space the top status icons on a specific grid.")]
+        public float indicatorSpread;
     }
 
     // Per-prefab layout config now lives on PieceGenEntry in PrefabRegistry.cs. The old

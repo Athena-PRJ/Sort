@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="Layer_2" data-name="Layer 2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28.61 32.85">
+  <defs>
+    <style>
+      .cls-1 {
+        fill: #bf564a;
+      }
+
+      .cls-2 {
+        fill: #f2ffff;
+        stroke: #b0464c;
+        stroke-miterlimit: 10;
+        stroke-width: .5px;
+      }
+
+      .cls-3 {
+        fill: #d0675a;
+      }
+    </style>
+  </defs>
+  <g id="Layer_1-2" data-name="Layer 1">
+    <g>
+      <path d="M17.63.77v1.88c0,.43-.35.77-.77.77h-1.07v2.36h-2.84v-2.36h-1.07c-.42,0-.77-.34-.77-.77V.77c0-.42.35-.77.77-.77h4.98c.42,0,.77.35.77.77Z"/>
+      <path d="M24.92,5.64c-.25.25-.78.14-1.33-.21l-2.34,2.34-1.1-1.1,2.34-2.34c-.35-.55-.46-1.08-.21-1.33.35-.35,1.22-.03,1.94.7s1.05,1.6.7,1.94Z"/>
+      <path d="M3.31,5.64c.25.25.78.14,1.33-.21l2.34,2.34,1.1-1.1-2.34-2.34c.35-.55.46-1.08.21-1.33-.35-.35-1.22-.03-1.94.7s-1.05,1.6-.7,1.94Z"/>
+      <circle class="cls-1" cx="14.31" cy="18.55" r="14.31"/>
+      <ellipse class="cls-3" cx="14.31" cy="18.04" rx="14.31" ry="13.8"/>
+      <circle class="cls-2" cx="14.31" cy="18.16" r="11.05"/>
+      <rect x="13.8" y="8.68" width=".77" height="2.09" rx=".26" ry=".26"/>
+      <rect x="13.8" y="25.41" width=".77" height="2.09" rx=".26" ry=".26"/>
+      <rect x="5.68" y="17.11" width=".77" height="2.09" rx=".26" ry=".26" transform="translate(-12.09 24.22) rotate(-90)"/>
+      <rect x="22.4" y="17.11" width=".77" height="2.09" rx=".26" ry=".26" transform="translate(4.63 40.94) rotate(-90)"/>
+      <rect x="7.83" y="23.03" width=".77" height="2.09" rx=".26" ry=".26" transform="translate(-3 46.91) rotate(-135)"/>
+      <rect x="19.66" y="11.2" width=".77" height="2.09" rx=".26" ry=".26" transform="translate(25.55 35.08) rotate(-135)"/>
+      <rect x="19.85" y="22.87" width=".77" height="2.09" rx=".26" ry=".26" transform="translate(-10.98 21.31) rotate(-45)"/>
+      <rect x="8.02" y="11.04" width=".77" height="2.09" rx=".26" ry=".26" transform="translate(-6.09 9.49) rotate(-45)"/>
+    </g>
+  </g>
+</svg>

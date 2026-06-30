@@ -99,6 +99,18 @@ PrefabInstance:
     m_TransformParent: {fileID: 0}
     m_Modifications:
     - target: {fileID: -8679921383154817045, guid: cf34751b0c826284bb62a24a333a78fc, type: 3}
+      propertyPath: m_LocalScale.x
+      value: 2
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: cf34751b0c826284bb62a24a333a78fc, type: 3}
+      propertyPath: m_LocalScale.y
+      value: 2
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: cf34751b0c826284bb62a24a333a78fc, type: 3}
+      propertyPath: m_LocalScale.z
+      value: 2
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: cf34751b0c826284bb62a24a333a78fc, type: 3}
       propertyPath: m_LocalPosition.x
       value: 0
       objectReference: {fileID: 0}
@@ -269,3 +281,6 @@ MonoBehaviour:
   questionmarkOverlay: {fileID: 1967290645666227115}
   rainbowDisplayColor: {r: 1, g: 1, b: 1, a: 1}
   questionmarkDisplayColor: {r: 0.55, g: 0.55, b: 0.6, a: 1}
+  trail: {fileID: 0}
+  trailWidthPercent: 0.5
+  trailSortingOrder: 50

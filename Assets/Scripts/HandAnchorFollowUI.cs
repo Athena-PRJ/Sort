@@ -34,16 +34,36 @@ namespace Sort
                  "apparent SIZE (closer = bigger). Tune until it matches the board pieces.")]
         [SerializeField] private float distanceFromCamera = 10f;
 
+        // Cached so the per-frame path does no Camera.main lookup and skips the (expensive) screen
+        // projections entirely while nothing has moved — the UI placemat + camera are static during
+        // normal play, so this runs the projection maybe once, then early-outs every frame after.
+        Camera cachedMain;
+        Vector3 lastUiWorld, lastCamPos;
+        Quaternion lastCamRot;
+        float lastDist;
+        bool hasLast;
+
         void LateUpdate()
         {
             if (uiTarget == null) return;
-            var wc = worldCamera != null ? worldCamera : Camera.main;
+            Camera wc = worldCamera;
+            if (wc == null) { if (cachedMain == null) cachedMain = Camera.main; wc = cachedMain; }
             if (wc == null) return;
 
+            Vector3 uiWorld = uiTarget.position;
+            Vector3 camPos = wc.transform.position;
+            Quaternion camRot = wc.transform.rotation;
+            // Nothing relevant moved → keep the current position, skip both projections.
+            if (hasLast && uiWorld == lastUiWorld && camPos == lastCamPos && camRot == lastCamRot && distanceFromCamera == lastDist)
+                return;
+
             // UI element → screen point (uiCamera = null is correct for Overlay canvases).
-            Vector3 screen = RectTransformUtility.WorldToScreenPoint(uiCamera, uiTarget.position);
+            Vector3 screen = RectTransformUtility.WorldToScreenPoint(uiCamera, uiWorld);
             screen.z = distanceFromCamera;
             transform.position = wc.ScreenToWorldPoint(screen);
+
+            lastUiWorld = uiWorld; lastCamPos = camPos; lastCamRot = camRot; lastDist = distanceFromCamera;
+            hasLast = true;
         }
     }
 }

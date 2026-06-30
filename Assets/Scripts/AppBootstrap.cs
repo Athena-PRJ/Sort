@@ -17,6 +17,14 @@ namespace Sort
             QualitySettings.vSyncCount = 0;
             // Target 60 FPS. On a 60 Hz screen this runs at 60; on 90/120 Hz screens it caps at 60.
             Application.targetFrameRate = 60;
+
+            // Quiet logging in a SHIPPING build: Debug.Log/Warning writes to Android logcat are slow (a
+            // real per-call cost on device) and we have ~40 of them across the code. In release, drop
+            // Log + Warning but KEEP Error/Exception (still useful for diagnosing device crashes). Full
+            // logging stays in the Editor and Development builds.
+#if !UNITY_EDITOR && !DEVELOPMENT_BUILD
+            Debug.unityLogger.filterLogType = LogType.Error;
+#endif
         }
     }
 }
