@@ -134,6 +134,9 @@ MonoBehaviour:
     breakWallStack: 0
   ties: []
   frozenColumns: []
+  threadColumns:
+  - columnIndex: 3
+    requiredColor: Red13
   nextLevel: {fileID: 11400000, guid: 94ad83d0edcdd9f4b9e4c0c0e546aae0, type: 2}
   questionmarkRevealFromBottom: 1
   coinReward: 50

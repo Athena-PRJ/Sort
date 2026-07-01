@@ -72,12 +72,24 @@ namespace Sort
         [Tooltip("How many clicks can be queued while an animation is playing.")]
         [SerializeField] private int maxQueuedClicks = 2;
 
-        [Tooltip("Pause after the player completes the LAST column (wins) before the Win panel + rewards " +
-                 "appear — lets the final column's celebration play out so the win feels earned. Read by " +
-                 "GameManager.CheckWin. 0 = instant.")]
-        [SerializeField] private float winCompleteDelay = 0.5f;
-        /// <summary>Win-reveal pause (seconds) used by GameManager — kept here with the other pacing knobs.</summary>
+        [Tooltip("EXTRA pause AFTER the last column's celebration finishes, before the Win panel + rewards " +
+                 "appear. GameManager already waits the full celebration length (auto-computed from the " +
+                 "column's piece count); this is just a small breath on top. 0 = panel right as the flip ends.")]
+        [SerializeField] private float winCompleteDelay = 0.2f;
+        /// <summary>Extra win-reveal buffer (seconds) AFTER the celebration — used by GameManager.</summary>
         public float WinCompleteDelay => winCompleteDelay;
+
+        /// <summary>
+        /// Total time the column-complete celebration takes for a column with this many pieces: the
+        /// pre-celebration pause + the per-piece hop/flip duration + the top→down cascade stagger across all
+        /// pieces. GameManager waits this (then <see cref="WinCompleteDelay"/>) before showing the Win panel,
+        /// so the final column's celebration fully plays out instead of being cut off.
+        /// </summary>
+        public float GetCelebrationDuration(int pieceCount)
+        {
+            int n = Mathf.Max(1, pieceCount);
+            return celebrationDelay + celebrationDuration + (n - 1) * celebrationStagger;
+        }
 
         [Header("Celebration animation (column complete)")]
         [Tooltip("Total duration of the hop+flip per piece when a column locks. Tuned to match the " +

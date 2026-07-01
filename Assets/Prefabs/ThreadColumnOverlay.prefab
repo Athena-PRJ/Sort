@@ -45,7 +45,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Sort.ThreadColumnOverlay
   coverRoot: {fileID: 919132149155446097, guid: dda0d47ddcda88a4fa7276a3633f79aa, type: 3}
-  coverMode: 1
+  coverMode: 0
   colorMaterials:
   - colorName: Red13
     material: {fileID: 2100000, guid: 20491a274eb763842882c40cde463ae2, type: 2}
@@ -53,10 +53,11 @@ MonoBehaviour:
   renderOnTop: 1
   onTopRenderQueue: 4000
   autoFit: 1
-  widthPadding: 1.08
-  lengthScale: 1
+  widthPadding: 1.03
+  rowsPerPiece: 7
+  rowOverlap: 0.3
   manualScale: 1
   coverLocalEuler: {x: 0, y: 180, z: 0}
-  coverLocalOffset: {x: 0, y: 0, z: 0.2}
+  coverLocalOffset: {x: 0, y: 0, z: 0.15}
   unlockAnimPrefab: {fileID: 8622805055639711181, guid: 1c17dc0fb7fd3cc49b01640391175d6f, type: 3}
   unlockDuration: 0.5
