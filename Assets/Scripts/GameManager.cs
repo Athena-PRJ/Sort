@@ -284,7 +284,7 @@ namespace Sort
             UpdateFrozenColumns();
             UpdateThreadColumns(c);
             LogProgress();
-            CheckWin();
+            CheckWin(c);
         }
 
         /// <summary>
@@ -401,7 +401,7 @@ namespace Sort
             Debug.Log($"[GameManager] {lockedCount}/{columns.Count} columns locked. Still unsorted: [{unsorted.ToString().TrimEnd()}]");
         }
 
-        void CheckWin()
+        void CheckWin(Column lastLocked = null)
         {
             if (IsWon || IsLost) return;
             if (columns.Count > 0 && lockedCount >= columns.Count)
@@ -410,15 +410,22 @@ namespace Sort
                 // then refresh UI; the panel + rewards come after the pause so the final celebration shows.
                 IsWon = true;
                 StateChanged?.Invoke();
-                StartCoroutine(WinSequence());
+                StartCoroutine(WinSequence(lastLocked));
             }
         }
 
-        /// <summary>Waits <see cref="PlayerHand.WinCompleteDelay"/> (tunable on PlayerHand, with the other
-        /// pacing knobs) so the last column's celebration plays, then reveals the Win panel + grants rewards.</summary>
-        IEnumerator WinSequence()
+        /// <summary>Waits for the LAST column's celebration to fully play out (its real length, computed from
+        /// the column's piece count + the celebration pacing) plus a small <see cref="PlayerHand.WinCompleteDelay"/>
+        /// buffer, then reveals the Win panel + grants rewards — so the panel never pops up mid-animation.</summary>
+        IEnumerator WinSequence(Column lastLocked)
         {
-            float delay = PlayerHand.Instance != null ? PlayerHand.Instance.WinCompleteDelay : 0f;
+            var hand = PlayerHand.Instance;
+            float delay = 0f;
+            if (hand != null)
+            {
+                if (lastLocked != null) delay += hand.GetCelebrationDuration(CountPieces(lastLocked));
+                delay += hand.WinCompleteDelay;
+            }
             if (delay > 0f) yield return new WaitForSeconds(delay);
 
             SfxManager.Play(SfxId.Win);
@@ -436,6 +443,16 @@ namespace Sort
             Debug.Log("Sort: player wins!");
             onWin?.Invoke();
             StateChanged?.Invoke();
+        }
+
+        /// <summary>Number of piece children in a column (overlays/effects aren't Pieces, so they don't count).</summary>
+        static int CountPieces(Column col)
+        {
+            if (col == null) return 0;
+            int n = 0;
+            for (int i = 0; i < col.transform.childCount; i++)
+                if (col.transform.GetChild(i).GetComponent<Piece>() != null) n++;
+            return n;
         }
 
         void Lose()

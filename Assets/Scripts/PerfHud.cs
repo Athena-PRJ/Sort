@@ -21,7 +21,7 @@ namespace Sort
     public class PerfHud : MonoBehaviour
     {
         // Flip to false (or strip this file) before shipping a public release build.
-        const bool AUTO_SPAWN = true;
+        const bool AUTO_SPAWN = false;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void AutoSpawn()
