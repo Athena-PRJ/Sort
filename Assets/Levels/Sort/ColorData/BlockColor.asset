@@ -14,58 +14,58 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Sort.ColorPalette
   entries:
   - name: Yellow1
-    baseMap: {fileID: 2800000, guid: b10318e242bb8ea468f076a9e740b3aa, type: 3}
+    baseMap: {fileID: 2800000, guid: ba4305174cc33ae4793bb90aa74aa570, type: 3}
   - name: Yellow2
-    baseMap: {fileID: 2800000, guid: 225f8f2fe5022e242b5bea304ba09f46, type: 3}
+    baseMap: {fileID: 2800000, guid: 86ea55f49c039c6448b0973c4d815fca, type: 3}
   - name: Yellow3
-    baseMap: {fileID: 2800000, guid: d3446168bd6a16049a6f0b9aa2df1502, type: 3}
+    baseMap: {fileID: 2800000, guid: 87ccf321d1872aa499f0bf702d94de93, type: 3}
   - name: Yellow4
-    baseMap: {fileID: 2800000, guid: 67cdad450bf2ef141804a40e755b7d47, type: 3}
+    baseMap: {fileID: 2800000, guid: 81710db54cc526c4283bfd292f0a696e, type: 3}
   - name: Yellow5
-    baseMap: {fileID: 2800000, guid: fa893c59f673818489c86288b94cf028, type: 3}
+    baseMap: {fileID: 2800000, guid: 6ad8ab5ee9505e54b94e7ddac9b2ee25, type: 3}
   - name: Orange6
-    baseMap: {fileID: 2800000, guid: 1b4bf5fa79aaa804980f986d4a0c1822, type: 3}
+    baseMap: {fileID: 2800000, guid: 427381fb7e604f44597060159b6873fe, type: 3}
   - name: Orange7
-    baseMap: {fileID: 2800000, guid: bbdb3d08ab075484a8eef90882177486, type: 3}
+    baseMap: {fileID: 2800000, guid: 52e9bb55318c9664dbc8f19c0acf9f25, type: 3}
   - name: Purple8
-    baseMap: {fileID: 2800000, guid: 2bb43630d751398409242149d8a6b688, type: 3}
+    baseMap: {fileID: 2800000, guid: 1fdd7d1350b31584595bff0b590849b3, type: 3}
   - name: Purple9
-    baseMap: {fileID: 2800000, guid: f0883bb6f0bad5f44a59cf056d66dc22, type: 3}
+    baseMap: {fileID: 2800000, guid: adc0be5ae3f8c444e95a6458c93f3296, type: 3}
   - name: Purple10
-    baseMap: {fileID: 2800000, guid: a02b9e619ab4c7f4ea82018965b99d6c, type: 3}
+    baseMap: {fileID: 2800000, guid: a0a5529ab3d792e438303b950b21cd0c, type: 3}
   - name: Red11
-    baseMap: {fileID: 2800000, guid: 57d9c07270dd3364c88826f72fe3c4ce, type: 3}
+    baseMap: {fileID: 2800000, guid: 96c1061edb10604439d71d9ccbf904b8, type: 3}
   - name: Red12
-    baseMap: {fileID: 2800000, guid: 85932e790cbe22348aeb2e44d0e5c93b, type: 3}
+    baseMap: {fileID: 2800000, guid: faca07dc45268c3428db3eacfa3aee20, type: 3}
   - name: Red13
-    baseMap: {fileID: 2800000, guid: 61ab56e8694bcb747907b08ee3e7be47, type: 3}
+    baseMap: {fileID: 2800000, guid: 0e49cf54d52d39e49bea593dec3b7b37, type: 3}
   - name: Red14
-    baseMap: {fileID: 2800000, guid: 28ebb54ea8cd41a4fa66c5c57d44a626, type: 3}
+    baseMap: {fileID: 2800000, guid: 67b9828a9d3ea394a90d897b92479ef9, type: 3}
   - name: Red15
-    baseMap: {fileID: 2800000, guid: 8924fa4f06dafa24480208ff85b5283d, type: 3}
+    baseMap: {fileID: 2800000, guid: 164d81135eb178a46b1202f39d066515, type: 3}
   - name: Blue16
-    baseMap: {fileID: 2800000, guid: 427a4f05112a045478ac7683610470fa, type: 3}
+    baseMap: {fileID: 2800000, guid: c12fc8157a64ad249ae7646f76f2cb2c, type: 3}
   - name: Blue17
-    baseMap: {fileID: 2800000, guid: e0da88be520779541b6da47529d32a40, type: 3}
+    baseMap: {fileID: 2800000, guid: ceae3887c123695418febb3842622451, type: 3}
   - name: Blue18
-    baseMap: {fileID: 2800000, guid: 81086db6dbd9f634cbf0a7907cf9f868, type: 3}
+    baseMap: {fileID: 2800000, guid: 0f9f45f23d13e8e4dbdd2e65b62ec4dc, type: 3}
   - name: Blue19
-    baseMap: {fileID: 2800000, guid: 74e39dffd344e2b4d92ea41c78e7eff9, type: 3}
+    baseMap: {fileID: 2800000, guid: 88089b90ce35e77479e52808ffa87251, type: 3}
   - name: Blue20
-    baseMap: {fileID: 2800000, guid: d3b6fac927a768044a8f7b590fe2d63e, type: 3}
+    baseMap: {fileID: 2800000, guid: 322fd7191b968b54cb59acfb11a0494b, type: 3}
   - name: Green21
-    baseMap: {fileID: 2800000, guid: 101172ecaec90c64f9060f073e3129a3, type: 3}
+    baseMap: {fileID: 2800000, guid: 19e5b54e7203b2f4ebd418996f547ee9, type: 3}
   - name: Green22
-    baseMap: {fileID: 2800000, guid: 2850bab05d5464a4995cfa75e551fb29, type: 3}
+    baseMap: {fileID: 2800000, guid: d7e2468ece8af444ba2bd4d199e7e34b, type: 3}
   - name: Green23
-    baseMap: {fileID: 2800000, guid: 6a66232c10fd8164fb743b1c6a87ec63, type: 3}
+    baseMap: {fileID: 2800000, guid: 22c4e9340eba99b43ba77e5aa7220c87, type: 3}
   - name: Green24
-    baseMap: {fileID: 2800000, guid: f5244c3616f0f984bb12525b4d473c48, type: 3}
+    baseMap: {fileID: 2800000, guid: 878a7028ab7cb274c9719c2fcaada128, type: 3}
   - name: Green25
-    baseMap: {fileID: 2800000, guid: 6d1619ec3f6ee4a45a3f18fda3464b7d, type: 3}
+    baseMap: {fileID: 2800000, guid: 2357ac6acbb977742a6dde543f27426d, type: 3}
   - name: White26
-    baseMap: {fileID: 2800000, guid: cce458d05dc79f34197d198a21498043, type: 3}
+    baseMap: {fileID: 2800000, guid: 5fa9b09b1f70e054eb1e26adf33a3cfa, type: 3}
   - name: Black27
-    baseMap: {fileID: 2800000, guid: 360ee333b94eece4ea33b25e0c4e30da, type: 3}
+    baseMap: {fileID: 2800000, guid: 1889a1f69f0cd6942a9dd1c61d48dbd5, type: 3}
   ambientOcclusionMap: {fileID: 0}
   ambientOcclusionStrength: 1

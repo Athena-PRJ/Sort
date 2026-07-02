@@ -21,6 +21,9 @@ namespace Sort
         [Tooltip("Move limit used when no LevelData is loaded. LevelLoader overrides this per level.")]
         [SerializeField] private int moveLimit = 20;
         [SerializeField] private TMP_Text movesText;
+        [Tooltip("Format for the moves label. {0} = moves remaining. e.g. '{0}' → \"30\", 'Moves: {0}' → " +
+                 "\"Moves: 30\". Applied to the infinite symbol too when there's no move limit.")]
+        [SerializeField] private string movesFormat = "{0}";
 
         [Header("Scenes")]
         [SerializeField] private string mainMenuSceneName = "MainMenu";
@@ -469,8 +472,8 @@ namespace Sort
         void UpdateMovesUI()
         {
             if (movesText == null) return;
-            // Move.png already contains the "Moves" wording — show just the number.
-            movesText.text = moveLimit > 0 ? MovesRemaining.ToString() : "∞";
+            string value = moveLimit > 0 ? MovesRemaining.ToString() : "∞";
+            movesText.text = string.IsNullOrEmpty(movesFormat) ? value : string.Format(movesFormat, value);
         }
     }
 }

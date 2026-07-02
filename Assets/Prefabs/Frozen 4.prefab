@@ -64,7 +64,7 @@ MonoBehaviour:
   seamOverlap: 0.2
   simplifyAtOrBelowRows: 3
   segmentLocalEuler: {x: 0, y: 180, z: 0}
-  segmentLocalOffset: {x: 0, y: -0.32, z: 0.24}
+  segmentLocalOffset: {x: 0, y: -0.31, z: 0.26}
   cameraOffset: 1
   thresholdLabel: {fileID: 6608640627775148902}
   labelLocalOffset: {x: 1.2, y: 0, z: -0.76}

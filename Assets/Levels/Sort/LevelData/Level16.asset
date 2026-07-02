@@ -163,7 +163,8 @@ MonoBehaviour:
   frozenColumns:
   - columnIndex: 2
     unlockThreshold: 1
-  nextLevel: {fileID: 11400000}
+  threadColumns: []
+  nextLevel: {fileID: 11400000, guid: 1a7d64c312d59a74796f9933e4d99c92, type: 2}
   questionmarkRevealFromBottom: 1
   coinReward: 20
   freeRewindUses: 0
