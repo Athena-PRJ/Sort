@@ -41,6 +41,10 @@ namespace Sort
         Material originalMat;
         bool capturedOriginal;
 
+        /// <summary>The current theme tint colour — read by LitBoardSurface so a 3D board mesh can follow the
+        /// same per-theme colour the sprite recolor uses.</summary>
+        public Color TintColor => color;
+
         void OnEnable() => Apply();
         void OnValidate() { if (isActiveAndEnabled) Apply(); }
         void OnDisable() { if (sr != null && capturedOriginal) sr.sharedMaterial = originalMat; }

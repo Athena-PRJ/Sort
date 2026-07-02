@@ -9,7 +9,8 @@ namespace Sort
         [Tooltip("Level number shown in UI. Use 1 for the first level.")]
         public int levelNumber = 1;
 
-        [Tooltip("Difficulty tag shown in the Level badge (Easy, Normal, Hard, SuperHard, Expert).")]
+        [Tooltip("Difficulty tag shown in the Level badge (Easy, Normal, Hard, SuperHard, Expert). " +
+                 "Pick 'Level' to show a plain 'Level 1' badge instead of a difficulty word.")]
         public LevelDifficulty difficulty = LevelDifficulty.Easy;
 
         [PrefabPicker]

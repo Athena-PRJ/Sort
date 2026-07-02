@@ -54,10 +54,14 @@ MonoBehaviour:
   onTopRenderQueue: 4000
   autoFit: 1
   widthPadding: 1.03
+  lengthScale: 1.05
   rowsPerPiece: 7
-  rowOverlap: 0.3
+  rowOverlap: 0.5
   manualScale: 1
   coverLocalEuler: {x: 0, y: 180, z: 0}
-  coverLocalOffset: {x: 0, y: 0, z: 0.15}
+  coverLocalOffset: {x: 0, y: 0, z: 0.25}
   unlockAnimPrefab: {fileID: 8622805055639711181, guid: 1c17dc0fb7fd3cc49b01640391175d6f, type: 3}
   unlockDuration: 0.5
+  unravelFromEnds: 1
+  animAtBothEnds: 1
+  topAnimLocalEuler: {x: 0, y: 180, z: 180}

@@ -46,6 +46,10 @@ namespace Sort
         [SerializeField] private bool autoFit = true;
         [Tooltip("Cover width as a fraction of the column/piece width (1 = match, >1 = wider).")]
         [SerializeField] private float widthPadding = 1f;
+        [Tooltip("StackedRows: stretch the thread's total LENGTH along the column (1 = exactly span the " +
+                 "pieces, >1 = a bit longer, extending past both ends; rows get proportionally taller). " +
+                 "Bump slightly, e.g. 1.05–1.15, if the thread looks a touch short.")]
+        [Min(0.01f)] [SerializeField] private float lengthScale = 1f;
         [Tooltip("StackedRows: how many thread rows to place inside EACH piece cell (fixed density). " +
                  "A column of N pieces gets N × this many rows (e.g. 5 pieces × 7 = 35 rows).")]
         [Min(1)] [SerializeField] private int rowsPerPiece = 7;
@@ -65,6 +69,15 @@ namespace Sort
         [SerializeField] private GameObject unlockAnimPrefab;
         [Tooltip("Seconds the unlock animation plays before the overlay is destroyed (match the clip, ~0.5s).")]
         [SerializeField] private float unlockDuration = 0.5f;
+        [Tooltip("On unlock, PEEL the Thread rows away from BOTH ends toward the centre over Unlock Duration " +
+                 "(synced with the pull clip) instead of hiding them all at once. Off = instant.")]
+        [SerializeField] private bool unravelFromEnds = true;
+        [Tooltip("Spawn the pull animation at BOTH ends (top + bottom). The top copy is spawned with " +
+                 "Top Anim Local Euler so its string points the other way.")]
+        [SerializeField] private bool animAtBothEnds = true;
+        [Tooltip("Local rotation for the TOP animation copy so it mirrors the bottom one (a string at the top " +
+                 "instead of the bottom). Default (0,0,180) flips it in-plane; tune if the mirror looks wrong.")]
+        [SerializeField] private Vector3 topAnimLocalEuler = new Vector3(0, 0, 180);
 
         Column boundColumn;
         readonly List<GameObject> coverInstances = new List<GameObject>();
@@ -131,8 +144,11 @@ namespace Sort
             // Column direction from ACTUAL piece positions (reliable on the tilted board), pointing up.
             Vector3 up = (n > 1) ? (topW - botW).normalized : col.transform.up;
             float perPiece = (n > 1) ? Vector3.Distance(topW, botW) / (n - 1) : Extent(pieces[0].gameObject, up, 1f);
-            float span = Vector3.Distance(topW, botW) + perPiece;   // full column length (both end pieces)
-            Vector3 topEdge = topW + up * (perPiece * 0.5f);         // very top edge of the column
+            // Full column length (both end pieces), optionally stretched a bit by lengthScale (rows get
+            // proportionally taller so they stay contiguous). Extra length is added symmetrically at both ends.
+            float span = (Vector3.Distance(topW, botW) + perPiece) * Mathf.Max(0.01f, lengthScale);
+            Vector3 centreW = (topW + botW) * 0.5f;
+            Vector3 topEdge = centreW + up * (span * 0.5f);          // top edge of the (scaled) coverage
 
             // Target width = widest piece across the column.
             Vector3 widthDir = col.transform.right;
@@ -288,20 +304,98 @@ namespace Sort
 
         IEnumerator UnlockRoutine()
         {
-            for (int i = 0; i < coverInstances.Count; i++)
-                if (coverInstances[i] != null) coverInstances[i].SetActive(false);
-
+            // Spawn the pull animation FIRST so it plays while the cover peels away — one at each end.
             if (unlockAnimPrefab != null)
             {
-                var anim = Instantiate(unlockAnimPrefab, transform);
-                anim.transform.localPosition = Vector3.zero;
-                anim.transform.localRotation = Quaternion.identity;
-                ApplyColorAndOnTop(anim, boundColumn != null ? boundColumn.ThreadColor : null);
+                SpawnUnlockAnim(Quaternion.identity);                                 // bottom string
+                if (animAtBothEnds) SpawnUnlockAnim(Quaternion.Euler(topAnimLocalEuler)); // mirrored → top string
                 SfxManager.Play(SfxId.Unfreeze);   // reuse the unfreeze sfx for the thread snap
             }
 
-            if (unlockDuration > 0f) yield return new WaitForSeconds(unlockDuration);
+            if (unravelFromEnds)
+            {
+                yield return StartCoroutine(UnravelCovers(unlockDuration));
+            }
+            else
+            {
+                for (int i = 0; i < coverInstances.Count; i++)
+                    if (coverInstances[i] != null) coverInstances[i].SetActive(false);
+                if (unlockDuration > 0f) yield return new WaitForSeconds(unlockDuration);
+            }
+
             Destroy(gameObject);
+        }
+
+        void SpawnUnlockAnim(Quaternion localRot)
+        {
+            var anim = Instantiate(unlockAnimPrefab, transform);
+            anim.transform.localPosition = Vector3.zero;
+            anim.transform.localRotation = localRot;
+            ApplyColorAndOnTop(anim, boundColumn != null ? boundColumn.ThreadColor : null);
+        }
+
+        /// <summary>
+        /// Peels the cover rows away from BOTH ends toward the centre over <paramref name="duration"/>,
+        /// SEQUENTIALLY: the top row wipes horizontally in one direction, the next top row the OTHER
+        /// direction, and so on (same for the bottom rows) — a zig-zag zip that reads more natural than an
+        /// even shrink-to-centre. Top and bottom advance together, meeting in the middle.
+        /// </summary>
+        IEnumerator UnravelCovers(float duration)
+        {
+            var rows = new List<GameObject>();
+            for (int i = 0; i < coverInstances.Count; i++)
+                if (coverInstances[i] != null) rows.Add(coverInstances[i]);
+            int n = rows.Count;
+            if (n == 0) { if (duration > 0f) yield return new WaitForSeconds(duration); yield break; }
+
+            // Sort top → bottom so "both ends" are the real top and bottom of the column.
+            rows.Sort((a, b) => b.transform.position.y.CompareTo(a.transform.position.y));
+            Vector3 widthDir = boundColumn != null ? boundColumn.transform.right : Vector3.right;
+
+            int steps = (n + 1) / 2;
+            float stepTime = duration / Mathf.Max(1, steps);
+            for (int s = 0; s < steps; s++)
+            {
+                bool leftToRight = (s % 2 == 0);   // alternate the wipe direction each row
+                int top = s, bot = n - 1 - s;
+                if (rows[top] != null) StartCoroutine(WipeRow(rows[top], widthDir, leftToRight, stepTime * 1.3f));
+                if (bot != top && rows[bot] != null) StartCoroutine(WipeRow(rows[bot], widthDir, leftToRight, stepTime * 1.3f));
+                yield return new WaitForSeconds(stepTime);
+            }
+        }
+
+        /// <summary>Wipes one row out HORIZONTALLY: shrinks its width to zero while holding one edge fixed
+        /// (left→right disappears the left side first, right→left the right side), so it reads like a thread
+        /// being pulled sideways rather than shrinking to its centre.</summary>
+        IEnumerator WipeRow(GameObject row, Vector3 widthDir, bool leftToRight, float dur)
+        {
+            if (row == null) yield break;
+            var tr = row.transform;
+            int axis = WidthAxisIndex(row, widthDir);            // which LOCAL scale axis is the row's width
+            Vector3 startScale = tr.localScale;
+            Vector3 startPos = tr.position;
+            float w = Extent(row, widthDir, 0f);                 // world width
+            float sign = leftToRight ? 1f : -1f;                 // + holds the RIGHT edge, - holds the LEFT
+            float t = 0f;
+            while (t < dur && row != null)
+            {
+                t += Time.deltaTime;
+                float k = Mathf.Clamp01(t / Mathf.Max(1e-4f, dur));
+                Vector3 s = startScale; s[axis] = startScale[axis] * (1f - k);
+                tr.localScale = s;
+                tr.position = startPos + widthDir * (sign * (w * 0.5f) * k);   // keep the anchored edge in place
+                yield return null;
+            }
+            if (row != null) row.SetActive(false);
+        }
+
+        // Index (0=X,1=Y,2=Z) of the row's LOCAL scale axis that currently points most along `dir`.
+        static int WidthAxisIndex(GameObject go, Vector3 dir)
+        {
+            float dx = Mathf.Abs(Vector3.Dot(go.transform.right, dir));
+            float dy = Mathf.Abs(Vector3.Dot(go.transform.up, dir));
+            float dz = Mathf.Abs(Vector3.Dot(go.transform.forward, dir));
+            return (dx >= dy && dx >= dz) ? 0 : (dy >= dz ? 1 : 2);
         }
 
         // ---- helpers ----
@@ -314,7 +408,9 @@ namespace Sort
         {
             if (target == null) return;
             Material colorMat = FindColorMaterial(colorName);
-            var rends = target.GetComponentsInChildren<MeshRenderer>(true);
+            // Renderer (not MeshRenderer) so the ANIMATED thread_anim — a SkinnedMeshRenderer — also gets the
+            // tint + on-top state. That's why the anim was rendering BEHIND the board: skinned meshes were skipped.
+            var rends = target.GetComponentsInChildren<Renderer>(true);
             foreach (var r in rends)
             {
                 if (r == null) continue;

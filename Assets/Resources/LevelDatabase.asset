@@ -12,6 +12,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 01cd91ec21f48184782025bbbd2d63a1, type: 3}
   m_Name: LevelDatabase
   m_EditorClassIdentifier: Assembly-CSharp::Sort.LevelDatabase
+  rewindUnlockLevel: 7
+  switchUnlockLevel: 12
+  magnetUnlockLevel: 15
   nodes:
   - number: 1
     stages:

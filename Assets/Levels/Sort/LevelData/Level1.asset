@@ -117,10 +117,10 @@ MonoBehaviour:
     onlyStackColor: 
     breakWallStack: 0
   ties: []
-  frozenColumns:
-  - columnIndex: 1
-    unlockThreshold: 1
-  threadColumns: []
+  frozenColumns: []
+  threadColumns:
+  - columnIndex: 2
+    requiredColor: Red13
   nextLevel: {fileID: 11400000, guid: ace7b5ee6540a5a48b6cb7dca8943cf4, type: 2}
   questionmarkRevealFromBottom: 1
   coinReward: 20

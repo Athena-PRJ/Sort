@@ -131,6 +131,47 @@ Shader "Sort/RainbowFlow"
             }
             ENDHLSL
         }
+
+        // Casts shadows. The ForwardLit pass above outputs no depth for the shadow map, so without this
+        // explicit ShadowCaster the Rainbow piece would NOT drop a shadow like the other (URP/Lit) blocks.
+        Pass
+        {
+            Name "ShadowCaster"
+            Tags { "LightMode"="ShadowCaster" }
+            ZWrite On
+            ZTest LEqual
+            ColorMask 0
+            Cull Back
+
+            HLSLPROGRAM
+            #pragma vertex ShadowVert
+            #pragma fragment ShadowFrag
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Shadows.hlsl"
+
+            float3 _LightDirection;
+
+            struct AttributesSC { float4 positionOS : POSITION; float3 normalOS : NORMAL; };
+            struct VaryingsSC   { float4 positionHCS : SV_POSITION; };
+
+            VaryingsSC ShadowVert (AttributesSC IN)
+            {
+                VaryingsSC OUT;
+                float3 posWS  = TransformObjectToWorld(IN.positionOS.xyz);
+                float3 normWS = TransformObjectToWorldNormal(IN.normalOS);
+                float4 posCS  = TransformWorldToHClip(ApplyShadowBias(posWS, normWS, _LightDirection));
+                #if UNITY_REVERSED_Z
+                    posCS.z = min(posCS.z, UNITY_NEAR_CLIP_VALUE);
+                #else
+                    posCS.z = max(posCS.z, UNITY_NEAR_CLIP_VALUE);
+                #endif
+                OUT.positionHCS = posCS;
+                return OUT;
+            }
+
+            half4 ShadowFrag (VaryingsSC IN) : SV_Target { return 0; }
+            ENDHLSL
+        }
     }
 
     FallBack "Universal Render Pipeline/Unlit"

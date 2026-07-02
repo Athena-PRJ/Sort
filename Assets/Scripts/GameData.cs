@@ -9,6 +9,10 @@ namespace Sort
     /// <summary>
     /// Difficulty tag shown on the Level badge. Dev picks one per level in LevelData.
     /// The enum name (e.g. "SuperHard") is what gets displayed unless a custom format is used.
+    /// Pick <see cref="Level"/> for levels that should read plainly as "Level 1" instead of a
+    /// difficulty word. (Theme is chosen separately via LevelData.themeSet, so this only affects the label.)
+    /// New values MUST be appended at the END — the value is serialized by index, so inserting in the
+    /// middle would silently change every existing level's difficulty.
     /// </summary>
     public enum LevelDifficulty
     {
@@ -16,7 +20,8 @@ namespace Sort
         Normal,
         Hard,
         SuperHard,
-        Expert
+        Expert,
+        Level
     }
 
     // PieceTheme enum was removed in Phase 2 of the Prefab Registry refactor — per-level prefab
